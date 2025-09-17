@@ -597,6 +597,28 @@ def compute_shear_tensor(vel_x, vel_y, vel_z, box_size, H0=70.0):
 
     return sigma
 
+def compute_average_velocity(vel_x, vel_y, vel_z, count, smooting_fine=1):
+    mask = count > 0.0
+    avg_vx = np.zeros_like(vel_x)
+    avg_vy = np.zeros_like(vel_y)
+    avg_vz = np.zeros_like(vel_z)
+  
+    avg_vx[mask] = vel_x[mask] / count[mask]
+    avg_vy[mask] = vel_y[mask] / count[mask]
+    avg_vz[mask] = vel_z[mask] / count[mask]
+  
+    avg_vx = gaussian_filter(avg_vx, sigma=smoothing_fine, mode="wrap")
+    avg_vy = gaussian_filter(avg_vy, sigma=smoothing_fine, mode="wrap")
+    avg_vz = gaussian_filter(avg_vz, sigma=smoothing_fine, mode="wrap")
+  
+    return avg_vx, avg_vy, avg_vz
+  
+def compute_density_grid(mass_grid,box_size,grid_size,smoothing_fine=1):
+    density_grid = mass_grid / (box_size / grid_size) ** 3
+    density_grid /= np.mean(density_grid)
+    return gaussian_filter(density_grid, sigma=smoothing_fine, mode="wrap")
+
+
 def diagonalize_shear_tensor(sigma):
     """
     Compute eigenvalues and eigenvectors of the velocity shear tensor
@@ -888,6 +910,7 @@ class CosmicWebClassifier:
         density_grid = self.mass_grid / (self.box_size / self.grid_size) ** 3
         density_grid /= np.mean(density_grid)
         return gaussian_filter(density_grid, sigma=self.smoothing_fine, mode="wrap")
+
 
 
 
