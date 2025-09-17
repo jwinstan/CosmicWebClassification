@@ -262,7 +262,7 @@ def build_mass_grid(positions: np.ndarray,
                     masses: np.ndarray,
                     box_size: float,
                     grid_size: int = 100,
-                    method: str = "ngp"
+                    method: str = "ngp",
                     mass_grid:np.ndarray,):
     """
     Bin particle masses into a 3D grid with different assignment schemes.
