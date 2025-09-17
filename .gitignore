@@ -1,0 +1,23 @@
+# Byte-compiled/optimise/compiled files
+__pycache__/
+*.pyc
+*.pyd
+*.pyo
+
+.ipynb_checkpoints
+
+# Notebooks
+# *.ipynb
+comparison.py
+
+# Outputs
+*.hdf5
+
+# Images
+*.png
+*.jpg
+*.pdf
+
+.DS_Store
+
+*.egg-info

@@ -1,6 +1,0 @@
-h5py
-numpy
-numba
-scipy
-matplotlib
-plotly
