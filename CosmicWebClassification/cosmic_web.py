@@ -268,6 +268,7 @@ def build_mass_grid_numba(positions: np.ndarray,
 
     if method == "ngp":
         ngp_mass_numba(positions, masses, box_size, mass_grid)
+    elif method == "cic":
         cic_mass_numba(positions, masses, box_size, mass_grid)
     elif method == "tsc":
         tsc_mass_numba(positions, masses, box_size, mass_grid)
@@ -887,6 +888,7 @@ class CosmicWebClassifier:
         density_grid = self.mass_grid / (self.box_size / self.grid_size) ** 3
         density_grid /= np.mean(density_grid)
         return gaussian_filter(density_grid, sigma=self.smoothing_fine, mode="wrap")
+
 
 
 
