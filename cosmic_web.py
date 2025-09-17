@@ -39,8 +39,9 @@ def cosmic_web_classification_routine():
     masses = np.ones(N, dtype= np.float64)
 
     print("Building velocity and density grids...")
-    vel_x, vel_y, vel_z, count = build_velocity_grid(vel_x, vel_y, vel_z, count, positions, velocities, box_size, grid_size=grid_size, method=method)
-    mass_grid = build_mass_grid(mass_grid, positions, masses, box_size, grid_size=grid_size, method=method)
+    vel_x, vel_y, vel_z, count = build_velocity_grid(positions, velocities, box_size, grid_size=grid_size, method=method, 
+                                                     vel_x=vel_x, vel_y=vel_y, vel_z=vel_z, count=count)
+    mass_grid = build_mass_grid(positions, masses, box_size, grid_size=grid_size, method=method,mass_grid=mass_grid)
 
     mask = count > 0.0
     # avoid division-by-zero; set zeros where no particles
@@ -111,11 +112,15 @@ def cosmic_web_classification_routine():
     print("Finished :).")
 
 
-def build_velocity_grid(vel_x, vel_y, vel_z, count, positions: np.ndarray,
+def build_velocity_grid(positions: np.ndarray,
                         velocities: np.ndarray,
                         box_size: float,
                         grid_size: int = 100,
-                        method: str = "ngp"):
+                        method: str = "ngp",
+                        vel_x: np.ndarray = None,
+                        vel_y: np.ndarray = None,
+                        vel_z: np.ndarray = None,
+                        count: np.ndarray = None):
     """
     Bin particle velocities into a 3D grid with different assignment schemes.
 
@@ -134,14 +139,29 @@ def build_velocity_grid(vel_x, vel_y, vel_z, count, positions: np.ndarray,
           - "ngp": Nearest Grid Point (default)
           - "tsc": Triangular Shaped Cloud
           - "cic": Cloud In Cell
+    vel_x, vel_y, vel_z : optional (grid_size, grid_size, grid_size) arrays
+        Arrays to accumulate velocity sums. If None, new arrays are created.
+    count : optional (grid_size, grid_size, grid_size) array
+        Array to accumulate counts or weights. If None, a new array is created.
 
     Returns
     -------
     velocity_x, velocity_y, velocity_z : (grid_size, grid_size, grid_size) arrays
-        Smoothed Weighted velocity components in each cell.
-    Count : (grid_size, grid_size, grid_size) array
+        Smoothed weighted velocity components in each cell.
+    count : (grid_size, grid_size, grid_size) array
         Number of particles (or total weight) assigned to each cell.
     """
+
+    provided = [vel_x, vel_y, vel_z, count]
+    if any(x is None for x in provided) and not all(x is None for x in provided):
+        raise ValueError("If providing velocity grids, you must provide all of vel_x, vel_y, vel_z, and count.")
+
+    # Create arrays if none provided
+    if all(x is None for x in provided):
+        vel_x = np.zeros((grid_size, grid_size, grid_size), dtype=float)
+        vel_y = np.zeros_like(vel_x)
+        vel_z = np.zeros_like(vel_x)
+        count = np.zeros_like(vel_x)
 
     pos_frac = positions / box_size
 
@@ -232,12 +252,12 @@ def build_velocity_grid(vel_x, vel_y, vel_z, count, positions: np.ndarray,
 
     return vel_x, vel_y, vel_z, count
 
-def build_mass_grid(mass_grid:np.ndarray,
-                    positions: np.ndarray,
+def build_mass_grid(positions: np.ndarray,
                     masses: np.ndarray,
                     box_size: float,
                     grid_size: int = 100,
-                    method: str = "ngp"):
+                    method: str = "ngp"
+                    mass_grid:np.ndarray,):
     """
     Bin particle masses into a 3D grid with different assignment schemes.
 
@@ -256,6 +276,8 @@ def build_mass_grid(mass_grid:np.ndarray,
           - "ngp": Nearest Grid Point (default)
           - "cic": Cloud In Cell
           - "tsc": Triangular Shaped Cloud
+    mass_grid : np.ndarray, optional
+        If no grid is passed in, it will construct a new one.
 
     Returns
     -------
@@ -265,7 +287,11 @@ def build_mass_grid(mass_grid:np.ndarray,
         Total weight assigned to each cell (useful for normalization).
     """
 
-
+    if mass_grid is None:
+        vel_x = np.zeros((grid_size, grid_size, grid_size), dtype=float)
+        vel_y = np.zeros_like(vel_x)
+        vel_z = np.zeros_like(vel_x)
+        count = np.zeros_like(vel_x)
 
     pos_frac = positions / box_size
     scaled_pos = pos_frac * grid_size
@@ -591,3 +617,4 @@ def plotting_routine(web,box_size,grid_size,threshold):
 if __name__ == "__main__":
 
     cosmic_web_classification_routine()
+
