@@ -7,6 +7,10 @@ from matplotlib.colors import ListedColormap
 
 
 def cosmic_web_classification_routine():
+    """
+    A routine to classify the cosmic web from Hoffman et al 2012
+    link: https://academic.oup.com/mnras/article/425/3/2049/982860 
+    """
     grid_size = 256
     box_size = 100.0 #hard coded for now, can extract from simulation file.
     method = "cic" #I recommend cic right now, tsc has some wacky stuff going on (but it still works)
@@ -616,5 +620,6 @@ def plotting_routine(web,box_size,grid_size,threshold):
 if __name__ == "__main__":
 
     cosmic_web_classification_routine()
+
 
 
