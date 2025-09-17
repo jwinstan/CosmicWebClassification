@@ -252,6 +252,9 @@ def build_velocity_grid(positions: np.ndarray,
         vel_x[mask] /= count[mask]
         vel_y[mask] /= count[mask]
         vel_z[mask] /= count[mask]
+        vel_x[~mask] = 0.0
+        vel_y[~mask] = 0.0
+        vel_z[~mask] = 0.0
 
     return vel_x, vel_y, vel_z, count
 
@@ -620,6 +623,7 @@ def plotting_routine(web,box_size,grid_size,threshold):
 if __name__ == "__main__":
 
     cosmic_web_classification_routine()
+
 
 
 
