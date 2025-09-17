@@ -1,10 +1,119 @@
 import numpy as np
 from scipy.ndimage import gaussian_filter
+import gc
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.colors import ListedColormap
-from numba import njit
 
 
+def cosmic_web_classification_routine():
+    """
+    A routine to classify the cosmic web from Hoffman et al 2012
+    link: https://academic.oup.com/mnras/article/425/3/2049/982860 
+    """
+    grid_size = 256
+    box_size = 100.0 #hard coded for now, can extract from simulation file.
+    method = "cic" #I recommend cic right now, tsc has some wacky stuff going on (but it still works)
+    threshold = 0.44 #Free parameter. Change until the universe looks good.
+
+
+    #Positions need to be in a (N,3) array
+    #Same array structure for velocities
+    #(N,1) array for masses
+
+    #Pre-construction of the arrays
+    vel_x = np.zeros((grid_size, grid_size, grid_size), dtype=np.float64)
+    vel_y = np.zeros_like(vel_x)
+    vel_z = np.zeros_like(vel_x)
+    count = np.zeros_like(vel_x)
+    mass_grid = np.zeros((grid_size, grid_size, grid_size), dtype=np.float64)
+
+    """
+    This is where data processing goes, this can be in a loop over multiple files, just contain the build_velocity_grid call in the loop.
+    If all masses the same, and array of 1s can be used, since all that matters is density.
+    for file in files:
+        positions, velocities, masses = load_file(file)
+        vel_x, vel_y, vel_z, count = build_velocity_grid(vel_x, vel_y, vel_z, count, positions, velocities, box_size, grid_size=grid_size, method=method)
+    """
+
+    #Temporary random data for testing
+    N = 100_000
+    positions = np.random.rand(N, 3) * box_size
+    velocities = np.random.randn(N, 3)  # can be anything
+    masses = np.ones(N, dtype= np.float64)
+
+    print("Building velocity and density grids...")
+    vel_x, vel_y, vel_z, count = build_velocity_grid(positions, velocities, box_size, grid_size=grid_size, method=method, 
+                                                     vel_x=vel_x, vel_y=vel_y, vel_z=vel_z, count=count)
+    mass_grid = build_mass_grid(positions, masses, box_size, grid_size=grid_size, method=method,mass_grid=mass_grid)
+
+    mask = count > 0.0
+    # avoid division-by-zero; set zeros where no particles
+    avg_vx = np.zeros_like(vel_x, dtype=np.float64)
+    avg_vy = np.zeros_like(vel_y, dtype=np.float64)
+    avg_vz = np.zeros_like(vel_z, dtype=np.float64)
+    avg_vx[mask] = vel_x[mask] / count[mask]
+    avg_vy[mask] = vel_y[mask] / count[mask]
+    avg_vz[mask] = vel_z[mask] / count[mask]
+
+    vel_x = gaussian_filter(avg_vx, sigma=1, mode="wrap")
+    vel_y = gaussian_filter(avg_vy, sigma=1, mode="wrap")
+    vel_z = gaussian_filter(avg_vz, sigma=1, mode="wrap")
+   
+    
+    density_grid = mass_grid / (box_size / grid_size)**3  # convert to density
+    # Normalize to mean density = 1
+    density_grid = density_grid / np.mean(density_grid)
+    density_grid = gaussian_filter(density_grid, sigma=1, mode="wrap")
+    gc.collect()
+
+    print("Computing fine shear tensor...")
+    sigma_fine = compute_shear_tensor(vel_x, vel_y, vel_z, box_size=box_size, H0=67.5)
+    
+    print("Diagonalizing fine shear tensor...")
+    lambdas_fine, evecs = diagonalize_shear_tensor(sigma_fine)
+    del sigma_fine
+    gc.collect()
+    print("Classifying fine cosmic web...")
+    web_fine = classify_cosmic_web(lambdas_fine, lam_th=threshold)
+    del lambdas_fine, evecs
+    gc.collect()
+    # Compute coarse web for multiscale correction
+
+
+    print("Computing coarse V-web for multiscale correction...")
+    vel_x_coarse = gaussian_filter(vel_x, sigma=4, mode='wrap')
+    vel_y_coarse = gaussian_filter(vel_y, sigma=4, mode='wrap') 
+    vel_z_coarse = gaussian_filter(vel_z, sigma=4, mode='wrap')
+
+    del vel_x, vel_y, vel_z
+    gc.collect()
+    
+    print("Computing coarse shear tensor...")
+    sigma_coarse = compute_shear_tensor(vel_x_coarse, vel_y_coarse, vel_z_coarse, box_size=box_size, H0=67.5)
+    del vel_x_coarse, vel_y_coarse, vel_z_coarse
+    gc.collect()
+    print("Diagonalizing coarse shear tensor...")
+    lambdas_coarse, _ = diagonalize_shear_tensor(sigma_coarse)
+    del sigma_coarse
+    gc.collect()
+    print("Classifying coarse cosmic web...")
+    web_coarse = classify_cosmic_web(lambdas_coarse, lam_th=threshold)
+    del lambdas_coarse
+    gc.collect()
+        
+    # Apply multiscale correction
+    print("Applying multiscale correction...")
+    web = apply_multiscale_correction(web_fine, web_coarse, density_grid, mean_density=1.0, virial_density=340.0)
+
+    del web_coarse, web_fine, density_grid
+    gc.collect()
+
+    plotting_routine(web,box_size,grid_size,threshold)
+    #Add whatever plots you like here, a lot of the data is deleted to conserve RAM.
+    #Remove the del for the data you want or re-read it in.
+
+    print("Finished :).")
 
 def build_velocity_grid(positions: np.ndarray,
                         velocities: np.ndarray,
@@ -14,7 +123,8 @@ def build_velocity_grid(positions: np.ndarray,
                         vel_x: np.ndarray = None,
                         vel_y: np.ndarray = None,
                         vel_z: np.ndarray = None,
-                        count: np.ndarray = None):
+                        count: np.ndarray = None,
+                        average: bool = False):
     """
     Bin particle velocities into a 3D grid with different assignment schemes.
 
@@ -135,6 +245,16 @@ def build_velocity_grid(positions: np.ndarray,
     else:
         raise ValueError(f"Unknown method '{method}', use 'ngp', 'tsc' or 'cic'.")
 
+    #Average velocities in each cell.
+    if average:
+        mask = count > 0
+        vel_x[mask] /= count[mask]
+        vel_y[mask] /= count[mask]
+        vel_z[mask] /= count[mask]
+        vel_x[~mask] = 0.0
+        vel_y[~mask] = 0.0
+        vel_z[~mask] = 0.0
+
     return vel_x, vel_y, vel_z, count
 
 def build_mass_grid(positions: np.ndarray,
@@ -142,7 +262,7 @@ def build_mass_grid(positions: np.ndarray,
                     box_size: float,
                     grid_size: int = 100,
                     method: str = "ngp",
-                    mass_grid:np.ndarray = None):
+                    mass_grid:np.ndarray,):
     """
     Bin particle masses into a 3D grid with different assignment schemes.
 
@@ -239,8 +359,7 @@ def build_mass_grid(positions: np.ndarray,
 
     else:
         raise ValueError(f"Unknown method '{method}', use 'ngp', 'cic' or 'tsc'.")
-    
-
+    mass_grid = gaussian_filter(mass_grid, sigma=1, mode="wrap")
     return mass_grid
 
 def compute_shear_tensor(vel_x, vel_y, vel_z, box_size, H0=70.0):
@@ -356,16 +475,16 @@ def diagonalize_shear_tensor(sigma):
 
     idx = np.argsort(vals, axis=1)[:, ::-1]  
     vals_sorted = np.take_along_axis(vals, idx, axis=1)
-    #vecs_sorted = np.take_along_axis(vecs, idx[:, None, :], axis=2)
+    vecs_sorted = np.take_along_axis(vecs, idx[:, None, :], axis=2)
 
     lambda1 = vals_sorted[:, 0].reshape(N, N, N)
     lambda2 = vals_sorted[:, 1].reshape(N, N, N)
     lambda3 = vals_sorted[:, 2].reshape(N, N, N)
-    #evec1 = vecs_sorted[:, :, 0].reshape(N, N, N, 3)
-    #evec2 = vecs_sorted[:, :, 1].reshape(N, N, N, 3)
-    #evec3 = vecs_sorted[:, :, 2].reshape(N, N, N, 3)
+    evec1 = vecs_sorted[:, :, 0].reshape(N, N, N, 3)
+    evec2 = vecs_sorted[:, :, 1].reshape(N, N, N, 3)
+    evec3 = vecs_sorted[:, :, 2].reshape(N, N, N, 3)
 
-    return (lambda1, lambda2, lambda3)#, (evec1, evec2, evec3)
+    return (lambda1, lambda2, lambda3), (evec1, evec2, evec3)
 
 def classify_cosmic_web(lambdas, lam_th=0.0):
     """
@@ -496,113 +615,13 @@ def plotting_routine(web,box_size,grid_size,threshold):
     plt.title('Cosmic Web with Multiscale Correction (Middle Z slice)')
     plt.grid(color='gray', linestyle='--', alpha=0.5)
     
-class CosmicWebClassifier:
-    def __init__(self, 
-                 box_size: float = 100.0, 
-                 grid_size: int = 256, 
-                 method: str = "cic", 
-                 threshold: float = 0.44,
-                 H0: float = 67.5,
-                 smoothing_fine: float = 1,
-                 smoothing_coarse: float = 4):
-        self.box_size = box_size
-        self.grid_size = grid_size
-        self.method = method
-        self.threshold = threshold
-        self.H0 = H0
-        self.smoothing_fine = smoothing_fine
-        self.smoothing_coarse = smoothing_coarse
 
-        self.reset_grids()
+    plt.savefig(f"MULTI_Cosmic_web_multiscale_no_part_gridsize_{grid_size}_{threshold}.png", dpi=300, bbox_inches='tight')
+    plt.close()
 
-        self.web = None
-        self.evecs = None
-        self.lambdas_fine = None
-        self.lambdas_coarse = None
+if __name__ == "__main__":
+    cosmic_web_classification_routine()
 
-
-    def reset_grids(self):
-        shape = (self.grid_size, self.grid_size, self.grid_size)
-        self.vel_x = np.zeros(shape, dtype=np.float64)
-        self.vel_y = np.zeros(shape, dtype=np.float64)
-        self.vel_z = np.zeros(shape, dtype=np.float64)
-        self.count = np.zeros(shape, dtype=np.float64)
-        self.mass_grid = np.zeros(shape, dtype=np.float64)
-
-    def add_batch(self, positions, velocities, masses=None):
-
-        if masses is None:
-            masses = np.ones(len(positions), dtype=np.float64)
-
-        self.vel_x, self.vel_y, self.vel_z, self.count = build_velocity_grid(
-            positions, velocities, self.box_size, 
-            grid_size=self.grid_size, method=self.method,
-            vel_x=self.vel_x, vel_y=self.vel_y, vel_z=self.vel_z, count=self.count
-        )
-        self.mass_grid = build_mass_grid(
-            positions, masses, self.box_size, 
-            grid_size=self.grid_size, method=self.method, mass_grid=self.mass_grid
-        )
-
-    # ------------------------
-    # Final computation
-    # ------------------------
-    def classify_structure(self):
-
-        avg_vx, avg_vy, avg_vz = self._compute_average_velocity()
-        density_grid = self._compute_density_grid()
-
-        sigma_fine = compute_shear_tensor(avg_vx, avg_vy, avg_vz, box_size=self.box_size, H0=self.H0)
-        self.lambdas_fine = diagonalize_shear_tensor(sigma_fine)
-        web_fine = classify_cosmic_web(self.lambdas_fine, lam_th=self.threshold)
-
-        sigma_coarse = compute_shear_tensor(
-            gaussian_filter(avg_vx, sigma=self.smoothing_coarse, mode='wrap'),
-            gaussian_filter(avg_vy, sigma=self.smoothing_coarse, mode='wrap'),
-            gaussian_filter(avg_vz, sigma=self.smoothing_coarse, mode='wrap'),
-            box_size=self.box_size, H0=self.H0
-        )
-
-        self.lambdas_coarse= diagonalize_shear_tensor(sigma_coarse)
-        web_coarse = classify_cosmic_web(self.lambdas_coarse, lam_th=self.threshold)
-
-        self.web = apply_multiscale_correction(
-            web_fine, web_coarse, density_grid, mean_density=1.0, virial_density=340.0
-        )
-        return self.web
-
-
-    def plot(self, filename=None,show=False):
-        if self.web is None:
-            raise RuntimeError("Run classify_structure() first after adding batches.")
-
-        plotting_routine(self.web, self.box_size, self.grid_size, self.threshold)
-
-        if filename:
-            plt.savefig(filename, dpi=300, bbox_inches="tight")
-        if show:
-            plt.show()
-        plt.close()
-
-
-    def _compute_average_velocity(self):
-        mask = self.count > 0.0
-        avg_vx = np.zeros_like(self.vel_x)
-        avg_vy = np.zeros_like(self.vel_y)
-        avg_vz = np.zeros_like(self.vel_z)
-        avg_vx[mask] = self.vel_x[mask] / self.count[mask]
-        avg_vy[mask] = self.vel_y[mask] / self.count[mask]
-        avg_vz[mask] = self.vel_z[mask] / self.count[mask]
-
-        avg_vx = gaussian_filter(avg_vx, sigma=self.smoothing_fine, mode="wrap")
-        avg_vy = gaussian_filter(avg_vy, sigma=self.smoothing_fine, mode="wrap")
-        avg_vz = gaussian_filter(avg_vz, sigma=self.smoothing_fine, mode="wrap")
-        return avg_vx, avg_vy, avg_vz
-
-    def _compute_density_grid(self):
-        density_grid = self.mass_grid / (self.box_size / self.grid_size) ** 3
-        density_grid /= np.mean(density_grid)
-        return gaussian_filter(density_grid, sigma=self.smoothing_fine, mode="wrap")
 
 
 
