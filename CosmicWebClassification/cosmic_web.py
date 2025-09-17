@@ -2,7 +2,280 @@ import numpy as np
 from scipy.ndimage import gaussian_filter
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
-from numba import njit
+from numba import njit, prange
+
+
+
+@njit #@njit(parallel=True)
+def ngp_numba(positions, velocities, box_size,
+              vel_x, vel_y, vel_z, count):
+    N = positions.shape[0]
+    grid_size = vel_x.shape[0]
+    for p in range(N): #prange(N)?????
+        
+        pos_frac_x = positions[p, 0] / box_size
+        pos_frac_y = positions[p, 1] / box_size
+        pos_frac_z = positions[p, 2] / box_size
+
+        ix = int(np.floor(pos_frac_x * grid_size)) % grid_size
+        iy = int(np.floor(pos_frac_y * grid_size)) % grid_size
+        iz = int(np.floor(pos_frac_z * grid_size)) % grid_size
+
+        vel_x[ix, iy, iz] += velocities[p, 0]
+        vel_y[ix, iy, iz] += velocities[p, 1]
+        vel_z[ix, iy, iz] += velocities[p, 2]
+        count[ix, iy, iz] += 1.0
+    
+@njit
+def cic_numba(positions, velocities, box_size,
+              vel_x, vel_y, vel_z, count):
+    N = positions.shape[0]
+    grid_size = vel_x.shape[0]
+    for p in range(N): #prange???????????????
+        scaled_pos = positions[p] / box_size * grid_size
+        base = np.floor(scaled_pos).astype(np.int64)
+        frac = scaled_pos - base
+
+        for dx in (0, 1):
+            wx = (1.0 - frac[0]) if dx == 0 else frac[0]
+            ix = (base[0] + dx) % grid_size
+            for dy in (0, 1):
+                wy = (1.0 - frac[1]) if dy == 0 else frac[1]
+                iy = (base[1] + dy) % grid_size
+                for dz in (0, 1):
+                    wz = (1.0 - frac[2]) if dz == 0 else frac[2]
+                    iz = (base[2] + dz) % grid_size
+
+                    w = wx * wy * wz
+                    vel_x[ix, iy, iz] += velocities[p, 0] * w
+                    vel_y[ix, iy, iz] += velocities[p, 1] * w
+                    vel_z[ix, iy, iz] += velocities[p, 2] * w
+                    count[ix, iy, iz] += w
+
+@njit
+def tsc_kernel(x):
+    ax = np.abs(x)
+    w = 0.0
+    if ax < 0.5:
+        w = 0.75 - ax**2
+    elif ax < 1.5:
+        w = 0.5 * (1.5 - ax)**2
+    return w
+
+@njit
+def tsc_numba(positions, velocities, box_size,
+              vel_x, vel_y, vel_z, count):
+    N = positions.shape[0]
+    grid_size = vel_x.shape[0]
+
+    # shifts to cover 3x3x3 neighbors
+    shifts = np.array([-1, 0, 1], dtype=np.int64)
+
+    for p in range(N): #prange????
+        scaled_pos = positions[p] / box_size * grid_size
+        base = np.floor(scaled_pos).astype(np.int64)
+
+        for sx in shifts:
+            ix = (base[0] + sx) % grid_size
+            dx = scaled_pos[0] - (base[0] + sx + 0.5)
+            wx = tsc_kernel(dx)
+
+            for sy in shifts:
+                iy = (base[1] + sy) % grid_size
+                dy = scaled_pos[1] - (base[1] + sy + 0.5)
+                wy = tsc_kernel(dy)
+
+                for sz in shifts:
+                    iz = (base[2] + sz) % grid_size
+                    dz = scaled_pos[2] - (base[2] + sz + 0.5)
+                    wz = tsc_kernel(dz)
+
+                    w = wx * wy * wz
+                    vel_x[ix, iy, iz] += velocities[p, 0] * w
+                    vel_y[ix, iy, iz] += velocities[p, 1] * w
+                    vel_z[ix, iy, iz] += velocities[p, 2] * w
+                    count[ix, iy, iz] += w
+    return vel_x, vel_y, vel_z, count
+
+@njit
+def ngp_mass_numba(positions, masses, box_size, mass_grid):
+    N = positions.shape[0]
+    grid_size = mass_grid.shape[0]
+    for p in range(N):
+        pos_frac_x = positions[p, 0] / box_size
+        pos_frac_y = positions[p, 1] / box_size
+        pos_frac_z = positions[p, 2] / box_size
+
+        ix = int(np.floor(pos_frac_x * grid_size)) % grid_size
+        iy = int(np.floor(pos_frac_y * grid_size)) % grid_size
+        iz = int(np.floor(pos_frac_z * grid_size)) % grid_size
+
+        mass_grid[ix, iy, iz] += masses[p]
+
+@njit
+def cic_mass_numba(positions, masses, box_size, mass_grid):
+    N = positions.shape[0]
+    grid_size = mass_grid.shape[0]
+
+    for p in range(N):
+        scaled_pos = positions[p] / box_size * grid_size
+        base = np.floor(scaled_pos).astype(np.int64)
+        frac = scaled_pos - base
+
+        for dx in (0, 1):
+            wx = (1.0 - frac[0]) if dx == 0 else frac[0]
+            ix = (base[0] + dx) % grid_size
+            for dy in (0, 1):
+                wy = (1.0 - frac[1]) if dy == 0 else frac[1]
+                iy = (base[1] + dy) % grid_size
+                for dz in (0, 1):
+                    wz = (1.0 - frac[2]) if dz == 0 else frac[2]
+                    iz = (base[2] + dz) % grid_size
+
+                    w = wx * wy * wz
+                    mass_grid[ix, iy, iz] += masses[p] * w
+
+@njit
+def tsc_mass_numba(positions, masses, box_size, mass_grid):
+    N = positions.shape[0]
+    grid_size = mass_grid.shape[0]
+    shifts = np.array([-1, 0, 1], dtype=np.int64)
+
+    for p in range(N):
+        scaled_pos = positions[p] / box_size * grid_size
+        base = np.floor(scaled_pos).astype(np.int64)
+
+        for sx in shifts:
+            ix = (base[0] + sx) % grid_size
+            dx = scaled_pos[0] - (base[0] + sx + 0.5)
+            wx = tsc_kernel(dx)
+
+            for sy in shifts:
+                iy = (base[1] + sy) % grid_size
+                dy = scaled_pos[1] - (base[1] + sy + 0.5)
+                wy = tsc_kernel(dy)
+
+                for sz in shifts:
+                    iz = (base[2] + sz) % grid_size
+                    dz = scaled_pos[2] - (base[2] + sz + 0.5)
+                    wz = tsc_kernel(dz)
+
+                    w = wx * wy * wz
+                    mass_grid[ix, iy, iz] += masses[p] * w
+
+def build_velocity_grid_numba(positions: np.ndarray,
+                        velocities: np.ndarray,
+                        box_size: float,
+                        grid_size: int = 100,
+                        method: str = "cic",
+                        vel_x: np.ndarray = None,
+                        vel_y: np.ndarray = None,
+                        vel_z: np.ndarray = None,
+                        count: np.ndarray = None):
+    """
+    Bin particle velocities into a 3D grid with different assignment schemes.
+
+    Parameters
+    ----------
+    positions : (N, 3) array
+        Particle positions, assumed inside [0, box_size).
+    velocities : (N, 3) array
+        Particle velocities.
+    box_size : float
+        Size of the simulation box (same units as positions).
+    grid_size : int
+        Number of cells per dimension (default 100).
+    method : str, optional
+        Interpolation scheme:
+          - "ngp": Nearest Grid Point 
+          - "cic": Cloud In Cell (default)
+          - "tsc": Triangular Shaped Cloud
+    vel_x, vel_y, vel_z : optional (grid_size, grid_size, grid_size) arrays
+        Arrays to accumulate velocity sums. If None, new arrays are created.
+    count : optional (grid_size, grid_size, grid_size) array
+        Array to accumulate counts or weights. If None, a new array is created.
+    average : optional, bool
+        This will return the weighted averages instead of the sums.
+
+    Returns
+    -------
+    velocity_x, velocity_y, velocity_z : (grid_size, grid_size, grid_size) arrays
+        Smoothed weighted velocity components in each cell.
+    count : (grid_size, grid_size, grid_size) array
+        Number of particles (or total weight) assigned to each cell.
+    """
+
+    provided = [vel_x, vel_y, vel_z, count]
+    if any(x is None for x in provided) and not all(x is None for x in provided):
+        raise ValueError("If providing velocity grids, you must provide all of vel_x, vel_y, vel_z, and count.")
+
+    # Create arrays if none provided _> Used if not called in class.
+    if all(x is None for x in provided):
+        vel_x = np.zeros((grid_size, grid_size, grid_size), dtype=float)
+        vel_y = np.zeros_like(vel_x)
+        vel_z = np.zeros_like(vel_x)
+        count = np.zeros_like(vel_x)
+
+    if method == "ngp":
+        ngp_numba(positions, velocities, box_size,
+                  vel_x, vel_y, vel_z, count)
+    elif method == "cic":
+        cic_numba(positions, velocities, box_size,
+                  vel_x, vel_y, vel_z, count)
+    elif method == "tsc":
+        tsc_numba(positions, velocities, box_size,
+                  vel_x, vel_y, vel_z, count)
+    else:
+        raise ValueError(f"Unknown method '{method}', please use 'ngp', 'cic', or 'tsc'.")
+
+    return vel_x, vel_y, vel_z, count
+
+def build_mass_grid_numba(positions: np.ndarray,
+                    masses: np.ndarray,
+                    box_size: float,
+                    grid_size: int = 100,
+                    method: str = "cic",
+                    mass_grid:np.ndarray = None):
+    """
+    Bin particle masses into a 3D grid with different assignment schemes.
+
+    Parameters
+    ----------
+    positions : (N, 3) array
+        Particle positions, assumed inside [0, box_size).
+    masses : (N,) array
+        Particle masses.
+    box_size : float
+        Size of the simulation box (same units as positions).
+    grid_size : int
+        Number of cells per dimension (default 100).
+    method : str, optional
+        Interpolation scheme:
+          - "ngp": Nearest Grid Point 
+          - "cic": Cloud In Cell (default)
+          - "tsc": Triangular Shaped Cloud
+    mass_grid : np.ndarray, optional
+        If no grid is passed in, it will construct a new one.
+
+    Returns
+    -------
+    mass_grid : (grid_size, grid_size, grid_size) array
+        Mass in each cell.
+    """
+
+    if mass_grid is None:
+        mass_grid = np.zeros((grid_size, grid_size, grid_size), dtype=float)
+
+    if method == "ngp":
+        ngp_mass_numba(positions, masses, box_size, mass_grid)
+        cic_mass_numba(positions, masses, box_size, mass_grid)
+    elif method == "tsc":
+        tsc_mass_numba(positions, masses, box_size, mass_grid)
+    else:
+        raise ValueError(f"Unknown method '{method}'")
+
+    return mass_grid
+
 
 
 
@@ -495,6 +768,7 @@ def plotting_routine(web,box_size,grid_size,threshold):
     plt.ylabel('Y [Mpc]')
     plt.title('Cosmic Web with Multiscale Correction (Middle Z slice)')
     plt.grid(color='gray', linestyle='--', alpha=0.5)
+    
     
 class CosmicWebClassifier:
     def __init__(self, 
