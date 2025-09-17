@@ -120,7 +120,8 @@ def build_velocity_grid(positions: np.ndarray,
                         vel_x: np.ndarray = None,
                         vel_y: np.ndarray = None,
                         vel_z: np.ndarray = None,
-                        count: np.ndarray = None):
+                        count: np.ndarray = None,
+                        average: bool = False):
     """
     Bin particle velocities into a 3D grid with different assignment schemes.
 
@@ -143,6 +144,8 @@ def build_velocity_grid(positions: np.ndarray,
         Arrays to accumulate velocity sums. If None, new arrays are created.
     count : optional (grid_size, grid_size, grid_size) array
         Array to accumulate counts or weights. If None, a new array is created.
+    average : optional, bool
+        This will return the weighted averages instead of the sums.
 
     Returns
     -------
@@ -240,15 +243,11 @@ def build_velocity_grid(positions: np.ndarray,
         raise ValueError(f"Unknown method '{method}', use 'ngp', 'tsc' or 'cic'.")
 
     #Average velocities in each cell.
-    #mask = count > 0
-    #vel_x[mask] /= count[mask]
-    #vel_y[mask] /= count[mask]
-    #vel_z[mask] /= count[mask]
-    # Apply Gaussian smoothing.
-
-    #vel_x = gaussian_filter(vel_x, sigma=1, mode="wrap")
-    #vel_y = gaussian_filter(vel_y, sigma=1, mode="wrap")
-    #vel_z = gaussian_filter(vel_z, sigma=1, mode="wrap")
+    if average:
+        mask = count > 0
+        vel_x[mask] /= count[mask]
+        vel_y[mask] /= count[mask]
+        vel_z[mask] /= count[mask]
 
     return vel_x, vel_y, vel_z, count
 
@@ -617,4 +616,5 @@ def plotting_routine(web,box_size,grid_size,threshold):
 if __name__ == "__main__":
 
     cosmic_web_classification_routine()
+
 
