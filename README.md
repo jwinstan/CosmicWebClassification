@@ -18,7 +18,7 @@ This will load any dependencies needed by the scripts.
 
 You can call it from within python using 
 ```
-from CosmicWebClassification.cosmoic_web import CosmicWebClassifier
+from CosmicWebClassification.cosmic_web import CosmicWebClassifier
 ```
 
 Class can be constructed via
