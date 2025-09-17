@@ -808,12 +808,22 @@ class CosmicWebClassifier:
         if masses is None:
             masses = np.ones(len(positions), dtype=np.float64)
 
-        self.vel_x, self.vel_y, self.vel_z, self.count = build_velocity_grid(
+        """self.vel_x, self.vel_y, self.vel_z, self.count = build_velocity_grid(
             positions, velocities, self.box_size, 
             grid_size=self.grid_size, method=self.method,
             vel_x=self.vel_x, vel_y=self.vel_y, vel_z=self.vel_z, count=self.count
         )
         self.mass_grid = build_mass_grid(
+            positions, masses, self.box_size, 
+            grid_size=self.grid_size, method=self.method, mass_grid=self.mass_grid
+        )"""
+
+        self.vel_x, self.vel_y, self.vel_z, self.count = build_velocity_grid_numba(
+                  positions, velocities, self.box_size, 
+                  grid_size=self.grid_size, method=self.method,
+                  vel_x=self.vel_x, vel_y=self.vel_y, vel_z=self.vel_z, count=self.count
+              )
+        self.mass_grid = build_mass_grid_numba(
             positions, masses, self.box_size, 
             grid_size=self.grid_size, method=self.method, mass_grid=self.mass_grid
         )
@@ -877,6 +887,7 @@ class CosmicWebClassifier:
         density_grid = self.mass_grid / (self.box_size / self.grid_size) ** 3
         density_grid /= np.mean(density_grid)
         return gaussian_filter(density_grid, sigma=self.smoothing_fine, mode="wrap")
+
 
 
 
