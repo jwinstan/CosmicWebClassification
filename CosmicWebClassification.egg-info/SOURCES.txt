@@ -1,0 +1,10 @@
+LICENSE
+README.md
+setup.py
+CosmicWebClassification/__init__.py
+CosmicWebClassification/cosmic_web.py
+CosmicWebClassification.egg-info/PKG-INFO
+CosmicWebClassification.egg-info/SOURCES.txt
+CosmicWebClassification.egg-info/dependency_links.txt
+CosmicWebClassification.egg-info/requires.txt
+CosmicWebClassification.egg-info/top_level.txt
