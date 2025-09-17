@@ -115,7 +115,6 @@ def cosmic_web_classification_routine():
 
     print("Finished :).")
 
-
 def build_velocity_grid(positions: np.ndarray,
                         velocities: np.ndarray,
                         box_size: float,
@@ -621,7 +620,6 @@ def plotting_routine(web,box_size,grid_size,threshold):
     plt.close()
 
 if __name__ == "__main__":
-
     cosmic_web_classification_routine()
 
 
