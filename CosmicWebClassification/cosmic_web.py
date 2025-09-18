@@ -466,8 +466,6 @@ def diagonalize_shear_tensor(sigma):
     tensor[..., 0, 2] = tensor[..., 2, 0] = sigma['xz']
     tensor[..., 1, 2] = tensor[..., 2, 1] = sigma['yz']
 
-    print(f"[Tensor size] {tensor.nbytes / 1024**2:.2f} MB")
-
     tensor_flat = tensor.reshape(-1, 3, 3)
 
     vals, vecs = np.linalg.eigh(tensor_flat) 
@@ -656,16 +654,6 @@ class CosmicWebClassifier:
         if masses is None:
             masses = np.ones(len(positions), dtype=np.float64)
 
-        """self.vel_x, self.vel_y, self.vel_z, self.count = build_velocity_grid(
-            positions, velocities, self.box_size, 
-            grid_size=self.grid_size, method=self.method,
-            vel_x=self.vel_x, vel_y=self.vel_y, vel_z=self.vel_z, count=self.count
-        )
-        self.mass_grid = build_mass_grid(
-            positions, masses, self.box_size, 
-            grid_size=self.grid_size, method=self.method, mass_grid=self.mass_grid
-        )"""
-
         self.vel_x, self.vel_y, self.vel_z, self.count = build_velocity_grid_numba(
                   positions, velocities, self.box_size, 
                   grid_size=self.grid_size, method=self.method,
@@ -676,11 +664,12 @@ class CosmicWebClassifier:
             grid_size=self.grid_size, method=self.method, mass_grid=self.mass_grid
         )
 
+        del positions, velocities, masses
+
     # ------------------------
     # Final computation
     # ------------------------
     def classify_structure(self):
-
         avg_vx, avg_vy, avg_vz = self._compute_average_velocity()
         density_grid = self._compute_density_grid()
 
