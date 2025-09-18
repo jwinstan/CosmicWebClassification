@@ -3,6 +3,61 @@ from scipy.ndimage import gaussian_filter
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 from numba import njit, prange
+import functools
+import inspect
+import sys
+import psutil
+import os
+
+
+
+def sizeof_var(var):
+    """Return memory usage of a variable in bytes."""
+    if isinstance(var, np.ndarray):
+        return var.nbytes
+    return sys.getsizeof(var)
+
+def report_locals_memory(frame, label=""):
+    """Report memory usage of all local variables in a frame."""
+    print(f"\n[Memory Report] {label}")
+    total = 0
+    for name, value in frame.f_locals.items():
+        try:
+            size = sizeof_var(value)
+        except Exception:
+            size = 0
+        total += size
+        print(f"{name:20s} : {size/1024/1024:.3f} MB")
+    print(f"{'-'*35}\nTotal locals: {total/1024/1024:.3f} MB")
+
+    # also report process RSS
+    process = psutil.Process(os.getpid())
+    rss = process.memory_info().rss
+    print(f"Process RSS   : {rss/1024/1024:.3f} MB")
+
+def memory_profile(label=""):
+    """
+    Decorator to profile memory usage of local variables
+    and process RSS for a function.
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            result = func(*args, **kwargs)
+            frame = inspect.currentframe().f_back
+            report_locals_memory(frame, label=f"{func.__name__} {label}")
+            return result
+        return wrapper
+    return decorator
+
+def memory_profile_class(cls):
+    """
+    Class decorator: wrap all methods to profile memory.
+    """
+    for name, attr in list(cls.__dict__.items()):
+        if callable(attr):
+            setattr(cls, name, memory_profile()(attr))
+    return cls
 
 
 
@@ -163,6 +218,7 @@ def tsc_mass_numba(positions, masses, box_size, mass_grid):
                     w = wx * wy * wz
                     mass_grid[ix, iy, iz] += masses[p] * w
 
+#@memory_profile()
 def build_velocity_grid_numba(positions: np.ndarray,
                         velocities: np.ndarray,
                         box_size: float,
@@ -230,6 +286,7 @@ def build_velocity_grid_numba(positions: np.ndarray,
 
     return vel_x, vel_y, vel_z, count
 
+#@memory_profile()
 def build_mass_grid_numba(positions: np.ndarray,
                     masses: np.ndarray,
                     box_size: float,
@@ -277,7 +334,7 @@ def build_mass_grid_numba(positions: np.ndarray,
 
     return mass_grid
 
-
+#@memory_profile()
 def compute_shear_tensor(vel_x, vel_y, vel_z, box_size, H0=70.0):
     """
     Compute Sigma_{alpha,beta} = -1/(2 H0) (d_beta v_alpha + d_alpha v_beta)
@@ -358,6 +415,7 @@ def compute_shear_tensor(vel_x, vel_y, vel_z, box_size, H0=70.0):
 
     return sigma
 
+#@memory_profile()
 def compute_average_velocity(vel_x, vel_y, vel_z, count, smoothing_fine=1):
     mask = count > 0.0
     avg_vx = np.zeros_like(vel_x)
@@ -373,13 +431,14 @@ def compute_average_velocity(vel_x, vel_y, vel_z, count, smoothing_fine=1):
     avg_vz = gaussian_filter(avg_vz, sigma=smoothing_fine, mode="wrap")
   
     return avg_vx, avg_vy, avg_vz
-  
+
+#@memory_profile()
 def compute_density_grid(mass_grid,box_size,grid_size,smoothing_fine=1):
     density_grid = mass_grid / (box_size / grid_size) ** 3
     density_grid /= np.mean(density_grid)
     return gaussian_filter(density_grid, sigma=smoothing_fine, mode="wrap")
 
-
+#@memory_profile()
 def diagonalize_shear_tensor(sigma):
     """
     Compute eigenvalues and eigenvectors of the velocity shear tensor
@@ -407,6 +466,8 @@ def diagonalize_shear_tensor(sigma):
     tensor[..., 0, 2] = tensor[..., 2, 0] = sigma['xz']
     tensor[..., 1, 2] = tensor[..., 2, 1] = sigma['yz']
 
+    print(f"[Tensor size] {tensor.nbytes / 1024**2:.2f} MB")
+
     tensor_flat = tensor.reshape(-1, 3, 3)
 
     vals, vecs = np.linalg.eigh(tensor_flat) 
@@ -424,6 +485,7 @@ def diagonalize_shear_tensor(sigma):
 
     return (lambda1, lambda2, lambda3)#, (evec1, evec2, evec3)
 
+#@memory_profile()
 def classify_cosmic_web(lambdas, lam_th=0.0):
     """
     Classify cosmic web based on shear tensor eigenvalues.
@@ -453,6 +515,7 @@ def classify_cosmic_web(lambdas, lam_th=0.0):
     
     return web_type
 
+#@memory_profile()
 def apply_multiscale_correction(fine_web, coarse_web, density_grid, 
                                mean_density=1.0, virial_density=340.0):
     """
@@ -509,6 +572,7 @@ def apply_multiscale_correction(fine_web, coarse_web, density_grid,
     print(f"Multiscale correction applied to {corrections_applied} cells")
     return corrected_web
 
+#@memory_profile()
 def plotting_routine(web,box_size,grid_size,threshold):
     """
     Plotting routine for the cosmic web classification.
@@ -553,7 +617,7 @@ def plotting_routine(web,box_size,grid_size,threshold):
     plt.title('Cosmic Web with Multiscale Correction (Middle Z slice)')
     plt.grid(color='gray', linestyle='--', alpha=0.5)
     
-    
+@memory_profile_class
 class CosmicWebClassifier:
     def __init__(self, 
                  box_size: float = 100.0, 
@@ -563,6 +627,8 @@ class CosmicWebClassifier:
                  H0: float = 67.5,
                  smoothing_fine: float = 1,
                  smoothing_coarse: float = 4):
+        
+
         self.box_size = box_size
         self.grid_size = grid_size
         self.method = method
@@ -575,8 +641,6 @@ class CosmicWebClassifier:
 
         self.web = None
         self.evecs = None
-        self.lambdas_fine = None
-        self.lambdas_coarse = None
 
 
     def reset_grids(self):
@@ -621,8 +685,8 @@ class CosmicWebClassifier:
         density_grid = self._compute_density_grid()
 
         sigma_fine = compute_shear_tensor(avg_vx, avg_vy, avg_vz, box_size=self.box_size, H0=self.H0)
-        self.lambdas_fine = diagonalize_shear_tensor(sigma_fine)
-        web_fine = classify_cosmic_web(self.lambdas_fine, lam_th=self.threshold)
+        lambdas_fine = diagonalize_shear_tensor(sigma_fine)
+        web_fine = classify_cosmic_web(lambdas_fine, lam_th=self.threshold)
 
         sigma_coarse = compute_shear_tensor(
             gaussian_filter(avg_vx, sigma=self.smoothing_coarse, mode='wrap'),
@@ -631,8 +695,8 @@ class CosmicWebClassifier:
             box_size=self.box_size, H0=self.H0
         )
 
-        self.lambdas_coarse= diagonalize_shear_tensor(sigma_coarse)
-        web_coarse = classify_cosmic_web(self.lambdas_coarse, lam_th=self.threshold)
+        lambdas_coarse=  diagonalize_shear_tensor(sigma_coarse)
+        web_coarse = classify_cosmic_web(lambdas_coarse, lam_th=self.threshold)
 
         self.web = apply_multiscale_correction(
             web_fine, web_coarse, density_grid, mean_density=1.0, virial_density=340.0
