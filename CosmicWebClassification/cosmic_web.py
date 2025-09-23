@@ -612,7 +612,7 @@ def plotting_routine(web,box_size,grid_size,threshold):
 
     plt.xlabel('X [Mpc]')
     plt.ylabel('Y [Mpc]')
-    plt.title('Cosmic Web with Multiscale Correction (Middle Z slice)')
+    plt.title('Cosmic Web (Middle Z slice)')
     plt.grid(color='gray', linestyle='--', alpha=0.5)
     
 #@memory_profile_class
@@ -693,7 +693,7 @@ class CosmicWebClassifier:
         return self.web
 
 
-    def plot(self, filename=None,show=False):
+    def plot(self, filename=None,show=True):
         if self.web is None:
             raise RuntimeError("Run classify_structure() first after adding batches.")
 
@@ -703,8 +703,6 @@ class CosmicWebClassifier:
             plt.savefig(filename, dpi=300, bbox_inches="tight")
         if show:
             plt.show()
-        plt.close()
-
 
     def _compute_average_velocity(self):
         mask = self.count > 0.0
@@ -724,6 +722,7 @@ class CosmicWebClassifier:
         density_grid = self.mass_grid / (self.box_size / self.grid_size) ** 3
         density_grid /= np.mean(density_grid)
         return gaussian_filter(density_grid, sigma=self.smoothing_fine, mode="wrap")
+
 
 
 
