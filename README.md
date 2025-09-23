@@ -7,7 +7,7 @@ Simple python code for classifying cosmic web structure in cosmological simulati
 Jordan Winstanley & Chris Power
 
 ### Installation
-You can install as a package by doing the following;
+You can install as a package by doing the following:
 
 ```
 git clone https://github.com/jwinstan/CosmicWebClassification.git
@@ -37,7 +37,7 @@ web_classifier = CosmicWebClassifier(1000, 256, "cic")
 
 ```
 
-Data can be added using, ensure that the positions are of the same units as the simulation box size.
+Data can be added using (ensure that the positions are of the same units as the simulation box size).
 ```
 web_classifier.add_batch(positions, velocities, masses)
 ```
