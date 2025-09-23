@@ -22,6 +22,10 @@ from CosmicWebClassification.cosmic_web import CosmicWebClassifier
 ```
 
 Class can be constructed via
+Currently available methods:
+  - Nearest grid point "ngp"
+  - Cloud in cell "cic"
+  - Triangular shaped cloud "tsc"
 
 ```
 web_classifier = CosmicWebClassifier(box_size, grid_size, method)
