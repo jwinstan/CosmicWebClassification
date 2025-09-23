@@ -46,5 +46,6 @@ A simple plot can be made with
 ```
 web_classifier.plot("test.png")
 ```
-![Cosmic Web Example](test.png)
-
+<p align="center">
+  <img src="test.png" alt="Cosmic Web Example" width="500"/>
+</p>
