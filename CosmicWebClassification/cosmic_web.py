@@ -615,7 +615,7 @@ def plotting_routine(web,box_size,grid_size,threshold):
     plt.title('Cosmic Web with Multiscale Correction (Middle Z slice)')
     plt.grid(color='gray', linestyle='--', alpha=0.5)
     
-@memory_profile_class
+#@memory_profile_class
 class CosmicWebClassifier:
     def __init__(self, 
                  box_size: float = 100.0, 
@@ -724,6 +724,7 @@ class CosmicWebClassifier:
         density_grid = self.mass_grid / (self.box_size / self.grid_size) ** 3
         density_grid /= np.mean(density_grid)
         return gaussian_filter(density_grid, sigma=self.smoothing_fine, mode="wrap")
+
 
 
 
