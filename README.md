@@ -42,7 +42,7 @@ Data can be added using (ensure that the positions are of the same units as the 
 web_classifier.add_batch(positions, velocities, masses)
 ```
 
-Execution via
+Once all the data has been added the main routine can be executed by:
 ```
 web = web_classifier.classify_structure()
 ```
