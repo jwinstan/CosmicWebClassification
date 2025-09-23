@@ -31,8 +31,13 @@ Currently available methods:
   - Cloud in cell "cic"
   - Triangular shaped cloud "tsc"
 
+Example: If you have a simulation box size of 1000 Mpc/h, and you want a grid size of 256 that uses cloud in cell interpolation.
+```
+web_classifier = CosmicWebClassifier(1000, 256, "cic")
 
-Data can be added using
+```
+
+Data can be added using, ensure that the positions are of the same units as the simulation box size.
 ```
 web_classifier.add_batch(positions, velocities, masses)
 ```
