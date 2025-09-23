@@ -1,7 +1,7 @@
 ## CosmicWebClassification 
 
 ### Description
-Simple python code for classifying cosmic web structure in cosmological simulations following [Hoffman et al 2012](https://academic.oup.com/mnras/article/425/3/2049/982860).
+Simple python code for classifying cosmic web structure in cosmological simulations [WIP] following [Hoffman et al 2012](https://academic.oup.com/mnras/article/425/3/2049/982860).
 
 ### Developers
 Jordan Winstanley & Chris Power
