@@ -34,7 +34,7 @@ Currently available methods:
 
 Data can be added using
 ```
-web_classifier.add_batch(position, velocities, masses)
+web_classifier.add_batch(positions, velocities, masses)
 ```
 
 Execution via
