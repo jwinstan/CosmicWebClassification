@@ -41,3 +41,9 @@ Execution via
 ```
 web = web_classifier.classify_structure()
 ```
+
+A simple plot can be made with
+```
+web_classifier.plot("test.png")
+```
+
