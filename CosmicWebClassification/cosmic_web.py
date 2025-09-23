@@ -701,8 +701,9 @@ class CosmicWebClassifier:
 
         if filename:
             plt.savefig(filename, dpi=300, bbox_inches="tight")
-        if show:
-            plt.show()
+        else:
+            if show:
+                plt.show()
 
     def _compute_average_velocity(self):
         mask = self.count > 0.0
@@ -722,6 +723,7 @@ class CosmicWebClassifier:
         density_grid = self.mass_grid / (self.box_size / self.grid_size) ** 3
         density_grid /= np.mean(density_grid)
         return gaussian_filter(density_grid, sigma=self.smoothing_fine, mode="wrap")
+
 
 
 
