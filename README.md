@@ -23,14 +23,14 @@ from CosmicWebClassification.cosmic_web import CosmicWebClassifier
 
 Class can be constructed via
 
+```
+web_classifier = CosmicWebClassifier(box_size, grid_size, method)
+```
 Currently available methods:
   - Nearest grid point "ngp"
   - Cloud in cell "cic"
   - Triangular shaped cloud "tsc"
 
-```
-web_classifier = CosmicWebClassifier(box_size, grid_size, method)
-```
 
 Data can be added using
 ```
