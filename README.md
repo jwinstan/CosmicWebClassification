@@ -22,6 +22,7 @@ from CosmicWebClassification.cosmic_web import CosmicWebClassifier
 ```
 
 Class can be constructed via
+
 Currently available methods:
   - Nearest grid point "ngp"
   - Cloud in cell "cic"
