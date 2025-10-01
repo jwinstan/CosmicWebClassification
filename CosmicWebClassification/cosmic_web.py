@@ -150,7 +150,7 @@ def tsc_numba(positions, velocities, box_size,
                     vel_y[ix, iy, iz] += velocities[p, 1] * w
                     vel_z[ix, iy, iz] += velocities[p, 2] * w
                     count[ix, iy, iz] += w
-    return vel_x, vel_y, vel_z, count
+
 
 @njit
 def ngp_mass_numba(positions, masses, box_size, mass_grid):
@@ -737,7 +737,8 @@ class CosmicWebClassifier:
         pos_max = np.max(positions)
         if pos_max < 0.9*self.box_size:
             print(f"Warning: max position {pos_max:.3f} is much smaller than box_size {self.box_size:.3f}.")
-
+        if masses is None:
+            masses = np.ones(positions.shape[0], dtype=np.float64)
         self.vel_x, self.vel_y, self.vel_z, self.count = build_velocity_grid_numba(
                   positions, velocities, self.box_size, 
                   grid_size=self.grid_size, method=self.method,
