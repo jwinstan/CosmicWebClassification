@@ -354,7 +354,14 @@ def compute_shear_tensor(vel_x, vel_y, vel_z, box_size, H0=70.0):
     sigma : dict with keys ('xx','yy','zz','xy','xz','yz') each an (N,N,N) array
         Independent components of Sigma (note sigma['xy'] == sigma['yx']).
     """ 
-
+    if vel_x.shape != vel_y.shape or vel_x.shape != vel_z.shape:
+        raise ValueError("Velocity grids must have the same shape")
+    if vel_x.shape[0] != vel_x.shape[1] or vel_x.shape[1] != vel_x.shape[2]:
+        raise ValueError("Velocity grids must be cubic (N,N,N)")
+    
+    if not np.all(np.isfinite(vel_x)) or not np.all(np.isfinite(vel_y)) or not np.all(np.isfinite(vel_z)):
+        raise ValueError("Velocity grids contain NaNs or infs")
+    
     def safe_ifft(arr_k, kcomp):
         """Take derivative in Fourier space and check imaginary part."""
         arr = np.fft.ifftn(1j * kcomp * arr_k)
@@ -375,8 +382,6 @@ def compute_shear_tensor(vel_x, vel_y, vel_z, box_size, H0=70.0):
     kx = k1d[:, None, None]
     ky = k1d[None, :, None]
     kz = k1d[None, None, :]
-
-    vx_k = np.fft.fftn(vel_x)
     
     vx_k = np.fft.fftn(vel_x)
     vy_k = np.fft.fftn(vel_y)
@@ -468,7 +473,10 @@ def diagonalize_shear_tensor(sigma):
 
     tensor_flat = tensor.reshape(-1, 3, 3)
 
-    vals, vecs = np.linalg.eigh(tensor_flat) 
+    try:
+        vals, vecs = np.linalg.eigh(tensor_flat)
+    except np.linalg.LinAlgError as e:
+        raise RuntimeError("Eigen-decomposition failed. Check the shear tensor values.") from e
 
     idx = np.argsort(vals, axis=1)[:, ::-1]  
     vals_sorted = np.take_along_axis(vals, idx, axis=1)
@@ -514,7 +522,7 @@ def classify_cosmic_web(lambdas, lam_th=0.0):
     return web_type
 
 #@memory_profile()
-def apply_multiscale_correction(fine_web, coarse_web, density_grid, 
+def apply_multiscale_correction_old(fine_web, coarse_web, density_grid, 
                                mean_density=1.0, virial_density=340.0):
     """
     Apply multiscale correction to the V-web classification as described in 
@@ -550,6 +558,8 @@ def apply_multiscale_correction(fine_web, coarse_web, density_grid,
     N = fine_web.shape[0]
     
     corrections_applied = 0
+
+    assert fine_web.shape == coarse_web.shape == density_grid.shape, "Input grids must have the same shape."
     
     for ix in range(N):
         for iy in range(N):
@@ -568,6 +578,59 @@ def apply_multiscale_correction(fine_web, coarse_web, density_grid,
                     corrections_applied += 1
     
     print(f"Multiscale correction applied to {corrections_applied} cells")
+    return corrected_web
+
+def apply_multiscale_correction(fine_web, coarse_web, density_grid, 
+                               mean_density=1.0, virial_density=340.0):
+    """
+    Apply multiscale correction to the V-web classification as described in 
+    Hoffman et al. (2012) Section 5.
+    
+    Parameters
+    ----------
+    fine_web : array_like, shape (N,N,N)
+        High-resolution cosmic web classification (0=void, 1=sheet, 2=filament, 3=knot)
+    coarse_web : array_like, shape (N,N,N)
+        Low-resolution cosmic web classification with same shape and encoding
+    density_grid : array_like, shape (N,N,N)
+        Density field in units where mean density = 1.0
+    mean_density : float, default 1.0
+        Mean density threshold (normalized)
+    virial_density : float, default 340.0
+        Virial density threshold for correction
+        
+    Returns
+    -------
+    corrected_web : array_like, shape (N,N,N)
+        Multiscale-corrected cosmic web classification
+        
+    Notes
+    -----
+    This function corrects two types of misclassifications:
+    1. Voids (fine_web=0) with overdensity >= mean_density
+    2. Sheets/filaments (fine_web=1,2) with overdensity >= virial_density
+    
+    Both are replaced with the coarse web classification at the same location.
+    """
+    corrected_web = fine_web.copy()
+    
+    assert fine_web.shape == coarse_web.shape == density_grid.shape, \
+        "Input grids must have the same shape."
+    
+    # Correction 1: Voids with overdensity >= mean density
+    mask1 = (fine_web == 0) & (density_grid >= mean_density)
+    corrected_web[mask1] = coarse_web[mask1]
+    corrections_1 = np.sum(mask1)
+
+    # Correction 2: Sheets/filaments with overdensity >= virial density
+    mask2 = np.isin(fine_web, [1, 2]) & (density_grid >= virial_density)
+    corrected_web[mask2] = coarse_web[mask2]
+    corrections_2 = np.sum(mask2)
+    
+    corrections_applied = corrections_1 + corrections_2
+    print(f"Multiscale correction applied to {corrections_applied} cells "
+          f"({corrections_1} voids, {corrections_2} sheets/filaments)")
+    
     return corrected_web
 
 #@memory_profile()
@@ -590,7 +653,9 @@ def plotting_routine(web,box_size,grid_size,threshold):
     -------
     None
     """
-    print("Done. Plotting...")
+
+    if not np.all(np.isin(web, [0,1,2,3])):
+        print("Warning: web contains unexpected values outside [0,1,2,3]")
 
     # Parameters
     z_mid_idx = web.shape[2] // 2   # middle z index
@@ -635,6 +700,15 @@ class CosmicWebClassifier:
         self.smoothing_fine = smoothing_fine
         self.smoothing_coarse = smoothing_coarse
 
+        if self.box_size <= 0:
+            raise ValueError(f"box_size must be positive, got {self.box_size}")
+        if self.grid_size <= 0:
+            raise ValueError(f"grid_size must be positive, got {self.grid_size}")
+        
+        valid_methods = ["ngp", "cic", "tsc"]
+        if self.method not in valid_methods:
+            raise ValueError(f"Invalid method '{method}', must be one of {valid_methods}")
+
         self.reset_grids()
 
         self.web = None
@@ -642,22 +716,24 @@ class CosmicWebClassifier:
 
     def reset_grids(self):
         shape = (self.grid_size, self.grid_size, self.grid_size)
-        self.vel_x = np.zeros(shape, dtype=np.float64)
-        self.vel_y = np.zeros(shape, dtype=np.float64)
-        self.vel_z = np.zeros(shape, dtype=np.float64)
-        self.count = np.zeros(shape, dtype=np.float64)
-        self.mass_grid = np.zeros(shape, dtype=np.float64)
+        try:
+            self.vel_x = np.zeros(shape, dtype=np.float64)
+            self.vel_y = np.zeros(shape, dtype=np.float64)
+            self.vel_z = np.zeros(shape, dtype=np.float64)
+        except MemoryError as e:
+            raise MemoryError(f"Failed to allocate velocity grids of shape {shape}. Try reducing grid_size.") from e
+        try:
+            self.count = np.zeros(shape, dtype=np.float64)
+        except MemoryError as e:
+            raise MemoryError(f"Failed to allocate count grid of shape {shape}. Try reducing grid_size.") from e
+        try:
+            self.mass_grid = np.zeros(shape, dtype=np.float64)
+        except MemoryError as e:
+            raise MemoryError(f"Failed to allocate mass grid of shape {shape}. Try reducing grid_size.") from e
 
     def add_batch(self, positions, velocities, masses=None):
-        assert positions.shape == velocities.shape, "Positions and velocities must have the same shape."
-        assert (positions.shape[1] == 3) and (velocities.shape[1] == 3), "Positions and velocities must be (N,3) arrays."
+        self._validate_particle_inputs(positions, velocities, masses)
         assert np.all(positions >= 0.0) and np.all(positions < self.box_size), "Positions must be within the box [0, box_size)."
-
-        if masses is None:
-            masses = np.ones(len(positions), dtype=np.float64)
-        else:
-            assert masses.shape == (positions.shape[0],), "Masses must be a (N,) array."
-
         pos_max = np.max(positions)
         if pos_max < 0.9*self.box_size:
             print(f"Warning: max position {pos_max:.3f} is much smaller than box_size {self.box_size:.3f}.")
@@ -731,6 +807,27 @@ class CosmicWebClassifier:
         density_grid = self.mass_grid / (self.box_size / self.grid_size) ** 3
         density_grid /= np.mean(density_grid)
         return gaussian_filter(density_grid, sigma=self.smoothing_fine, mode="wrap")
+    
+    def _validate_particle_inputs(self, positions, velocities, masses=None):
+        if not isinstance(positions, np.ndarray) or not isinstance(velocities, np.ndarray):
+            raise TypeError("positions and velocities must be numpy arrays")
+        if positions.shape != velocities.shape:
+            raise ValueError(f"positions and velocities must have the same shape, got {positions.shape} and {velocities.shape}")
+        if positions.shape[1] != 3:
+            raise ValueError(f"positions and velocities must have shape (N,3), got {positions.shape}")
+        if masses is not None:
+            if not isinstance(masses, np.ndarray):
+                raise TypeError("masses must be a numpy array")
+            if masses.shape[0] != positions.shape[0]:
+                raise ValueError(f"masses must have length {positions.shape[0]}, got {masses.shape[0]}")
+        # Check for NaNs/Infs
+        if not np.all(np.isfinite(positions)):
+            raise ValueError("positions contain NaNs or infinite values")
+        if not np.all(np.isfinite(velocities)):
+            raise ValueError("velocities contain NaNs or infinite values")
+        if masses is not None and not np.all(np.isfinite(masses)):
+            raise ValueError("masses contain NaNs or infinite values")
+        
 
 
 
