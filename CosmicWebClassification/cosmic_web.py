@@ -401,9 +401,9 @@ def compute_shear_tensor(vel_x, vel_y, vel_z, box_size, H0=70.0):
     d_vy_dz = safe_ifft(vy_k, kz)
     d_vz_dz = safe_ifft(vz_k, kz)
 
-    S_xx = 0.5 * (d_vx_dx + d_vx_dx) 
-    S_yy = 0.5 * (d_vy_dy + d_vy_dy)
-    S_zz = 0.5 * (d_vz_dz + d_vz_dz)
+    S_xx = d_vx_dx
+    S_yy = d_vy_dy
+    S_zz = d_vz_dz
     S_xy = 0.5 * (d_vx_dy + d_vy_dx)
     S_xz = 0.5 * (d_vx_dz + d_vz_dx)
     S_yz = 0.5 * (d_vy_dz + d_vz_dy)
