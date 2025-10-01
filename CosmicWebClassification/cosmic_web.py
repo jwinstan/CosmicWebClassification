@@ -640,7 +640,6 @@ class CosmicWebClassifier:
         self.web = None
         self.evecs = None
 
-
     def reset_grids(self):
         shape = (self.grid_size, self.grid_size, self.grid_size)
         self.vel_x = np.zeros(shape, dtype=np.float64)
@@ -650,9 +649,18 @@ class CosmicWebClassifier:
         self.mass_grid = np.zeros(shape, dtype=np.float64)
 
     def add_batch(self, positions, velocities, masses=None):
+        assert positions.shape == velocities.shape, "Positions and velocities must have the same shape."
+        assert (positions.shape[1] == 3) and (velocities.shape[1] == 3), "Positions and velocities must be (N,3) arrays."
+        assert np.all(positions >= 0.0) and np.all(positions < self.box_size), "Positions must be within the box [0, box_size)."
 
         if masses is None:
             masses = np.ones(len(positions), dtype=np.float64)
+        else:
+            assert masses.shape == (positions.shape[0],), "Masses must be a (N,) array."
+
+        pos_max = np.max(positions)
+        if pos_max < 0.9*self.box_size:
+            print(f"Warning: max position {pos_max:.3f} is much smaller than box_size {self.box_size:.3f}.")
 
         self.vel_x, self.vel_y, self.vel_z, self.count = build_velocity_grid_numba(
                   positions, velocities, self.box_size, 
