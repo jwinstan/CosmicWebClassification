@@ -739,12 +739,12 @@ class CosmicWebClassifier:
             print(f"Warning: max position {pos_max:.3f} is much smaller than box_size {self.box_size:.3f}.")
         if masses is None:
             masses = np.ones(positions.shape[0], dtype=np.float64)
-        self.vel_x, self.vel_y, self.vel_z, self.count = build_velocity_grid_numba(
+        build_velocity_grid_numba(
                   positions, velocities, self.box_size, 
                   grid_size=self.grid_size, method=self.method,
                   vel_x=self.vel_x, vel_y=self.vel_y, vel_z=self.vel_z, count=self.count
               )
-        self.mass_grid = build_mass_grid_numba(
+        build_mass_grid_numba(
             positions, masses, self.box_size, 
             grid_size=self.grid_size, method=self.method, mass_grid=self.mass_grid
         )
@@ -829,6 +829,7 @@ class CosmicWebClassifier:
         if masses is not None and not np.all(np.isfinite(masses)):
             raise ValueError("masses contain NaNs or infinite values")
         
+
 
 
 
