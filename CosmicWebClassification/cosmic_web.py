@@ -869,6 +869,12 @@ class CosmicWebClassifier:
     def update_threshold(self,threshold_updated):
         if self.web is None:
             raise RuntimeError("Run classify_structure() first after adding batches. This is to update the threshold and re-run without re-computing velocity grids.")
+        
+        avg_vx, avg_vy, avg_vz = self._compute_average_velocity()
+        density_grid = self._compute_density_grid()
+
+        sigma_fine = compute_shear_tensor(avg_vx, avg_vy, avg_vz, box_size=self.box_size, H0=self.H0)
+        lambdas_fine = diagonalize_shear_tensor(sigma_fine)
         web_fine = classify_cosmic_web(lambdas_fine, lam_th=threshold_updated)
         if self.msc:
             sigma_coarse = compute_shear_tensor(
@@ -879,7 +885,7 @@ class CosmicWebClassifier:
             )
     
             lambdas_coarse=  diagonalize_shear_tensor(sigma_coarse)
-            web_coarse = classify_cosmic_web(lambdas_coarse, lam_th=self.threshold)
+            web_coarse = classify_cosmic_web(lambdas_coarse, lam_th=threshold_updated)
             self.web = apply_multiscale_correction(web_fine, web_coarse, density_grid, mean_density=1.0, virial_density=340.0)     
         else:
             self.web = web_fine
