@@ -688,8 +688,8 @@ class CosmicWebClassifier:
                  method: str = "cic", 
                  threshold: float = 0.44,
                  H0: float = 67.5,
-                 smoothing_fine: float = 1,
-                 smoothing_coarse: float = 4):
+                 smoothing_fine: float = 0.125,
+                 smoothing_coarse: float = 1):
         
 
         self.box_size = box_size
@@ -697,8 +697,8 @@ class CosmicWebClassifier:
         self.method = method
         self.threshold = threshold
         self.H0 = H0
-        self.smoothing_fine = smoothing_fine
-        self.smoothing_coarse = smoothing_coarse
+        self.smoothing_fine = smoothing_fine * grid_size / box_size
+        self.smoothing_coarse = smoothing_coarse * grid_size / box_size
 
         if self.box_size <= 0:
             raise ValueError(f"box_size must be positive, got {self.box_size}")
@@ -829,6 +829,7 @@ class CosmicWebClassifier:
         if masses is not None and not np.all(np.isfinite(masses)):
             raise ValueError("masses contain NaNs or infinite values")
         
+
 
 
 
