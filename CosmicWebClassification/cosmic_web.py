@@ -689,7 +689,8 @@ class CosmicWebClassifier:
                  threshold: float = 0.44,
                  H0: float = 67.5,
                  smoothing_fine: float = 0.125,
-                 smoothing_coarse: float = 1):
+                 smoothing_coarse: float = 1,
+                 apply_multiscale_correction = True):
         
 
         self.box_size = box_size
@@ -699,6 +700,7 @@ class CosmicWebClassifier:
         self.H0 = H0
         self.smoothing_fine = smoothing_fine * grid_size / box_size
         self.smoothing_coarse = smoothing_coarse * grid_size / box_size
+        self.msc = apply_multiscale_correction
 
         if self.box_size <= 0:
             raise ValueError(f"box_size must be positive, got {self.box_size}")
@@ -760,23 +762,22 @@ class CosmicWebClassifier:
 
         sigma_fine = compute_shear_tensor(avg_vx, avg_vy, avg_vz, box_size=self.box_size, H0=self.H0)
         lambdas_fine = diagonalize_shear_tensor(sigma_fine)
-        web_fine = classify_cosmic_web(lambdas_fine, lam_th=self.threshold)
+        web_fine = classify_cosmic_web(lambdas_fine, lam_th=self.threshold)  
 
-        sigma_coarse = compute_shear_tensor(
+        if self.msc:
+            sigma_coarse = compute_shear_tensor(
             gaussian_filter(avg_vx, sigma=self.smoothing_coarse, mode='wrap'),
             gaussian_filter(avg_vy, sigma=self.smoothing_coarse, mode='wrap'),
             gaussian_filter(avg_vz, sigma=self.smoothing_coarse, mode='wrap'),
             box_size=self.box_size, H0=self.H0
-        )
-
-        lambdas_coarse=  diagonalize_shear_tensor(sigma_coarse)
-        web_coarse = classify_cosmic_web(lambdas_coarse, lam_th=self.threshold)
-
-        self.web = apply_multiscale_correction(
-            web_fine, web_coarse, density_grid, mean_density=1.0, virial_density=340.0
-        )
+            )
+    
+            lambdas_coarse=  diagonalize_shear_tensor(sigma_coarse)
+            web_coarse = classify_cosmic_web(lambdas_coarse, lam_th=self.threshold)
+            self.web = apply_multiscale_correction(web_fine, web_coarse, density_grid, mean_density=1.0, virial_density=340.0)     
+        else:
+            self.web = web_fine
         return self.web
-
 
     def plot(self, filename=None,show=True):
         if self.web is None:
@@ -829,6 +830,7 @@ class CosmicWebClassifier:
         if masses is not None and not np.all(np.isfinite(masses)):
             raise ValueError("masses contain NaNs or infinite values")
         
+
 
 
 
