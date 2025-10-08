@@ -846,7 +846,26 @@ class CosmicWebClassifier:
         else:
             if show:
                 plt.show()
-
+    
+    def update_threshold(self,threshold_updated):
+        if self.web is None:
+            raise RuntimeError("Run classify_structure() first after adding batches. This is to update the threshold and re-run without re-computing velocity grids.")
+        web_fine = classify_cosmic_web(lambdas_fine, lam_th=threshold_updated)
+        if self.msc:
+            sigma_coarse = compute_shear_tensor(
+            gaussian_filter(avg_vx, sigma=self.smoothing_coarse, mode='wrap'),
+            gaussian_filter(avg_vy, sigma=self.smoothing_coarse, mode='wrap'),
+            gaussian_filter(avg_vz, sigma=self.smoothing_coarse, mode='wrap'),
+            box_size=self.box_size, H0=self.H0
+            )
+    
+            lambdas_coarse=  diagonalize_shear_tensor(sigma_coarse)
+            web_coarse = classify_cosmic_web(lambdas_coarse, lam_th=self.threshold)
+            self.web = apply_multiscale_correction(web_fine, web_coarse, density_grid, mean_density=1.0, virial_density=340.0)     
+        else:
+            self.web = web_fine
+        return self.web
+        
     def _compute_average_velocity(self):
         mask = self.count > 0.0
         avg_vx = np.zeros_like(self.vel_x)
@@ -886,6 +905,7 @@ class CosmicWebClassifier:
         if masses is not None and not np.all(np.isfinite(masses)):
             raise ValueError("masses contain NaNs or infinite values")
         
+
 
 
 
