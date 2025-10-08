@@ -491,6 +491,44 @@ def diagonalize_shear_tensor(sigma):
 
     return (lambda1, lambda2, lambda3)#, (evec1, evec2, evec3)
 
+def diagonalize_shear_tensor_new(sigma):
+    """
+    Compute eigenvalues of the velocity shear tensor at each cell in a 3D grid.
+
+    Parameters
+    ----------
+    sigma : dict
+        Dictionary with keys ('xx','yy','zz','xy','xz','yz') each an (N,N,N) array.
+
+    Returns
+    -------
+    lambdas : tuple of arrays
+        (lambda1, lambda2, lambda3), each (N,N,N), sorted descending: lambda1 > lambda2 > lambda3
+    """
+    N = sigma['xx'].shape[0]
+    
+    # Build 3x3 tensor at each grid cell
+    tensor = np.zeros((N, N, N, 3, 3), dtype=np.float32)
+    tensor[..., 0, 0] = sigma['xx']
+    tensor[..., 1, 1] = sigma['yy']
+    tensor[..., 2, 2] = sigma['zz']
+    tensor[..., 0, 1] = tensor[..., 1, 0] = sigma['xy']
+    tensor[..., 0, 2] = tensor[..., 2, 0] = sigma['xz']
+    tensor[..., 1, 2] = tensor[..., 2, 1] = sigma['yz']
+
+    # Compute eigenvalues
+    vals = np.linalg.eigh(tensor)[0]  # shape: (N,N,N,3), ascending order
+
+    # Sort descending
+    vals_sorted = vals[..., ::-1]
+
+    lambda1 = vals_sorted[..., 0]
+    lambda2 = vals_sorted[..., 1]
+    lambda3 = vals_sorted[..., 2]
+
+    return (lambda1, lambda2, lambda3)
+
+
 #@memory_profile()
 def classify_cosmic_web(lambdas, lam_th=0.0):
     """
