@@ -530,7 +530,7 @@ def diagonalize_shear_tensor_new(sigma):
 
 
 #@memory_profile()
-def classify_cosmic_web(lambdas, lam_th=0.0):
+def classify_cosmic_web(lambdas, lam_th=0.44):
     """
     Classify cosmic web based on shear tensor eigenvalues.
 
@@ -720,25 +720,6 @@ def plotting_routine(web,box_size,grid_size,threshold):
     
 #@memory_profile_class
 class CosmicWebClassifier:
-    """def __init__(self, 
-                 box_size: float = 100.0, 
-                 grid_size: int = 256, 
-                 method: str = "cic", 
-                 threshold: float = 0.44,
-                 H0: float = 67.5,
-                 smoothing_fine: float = 0.125,
-                 smoothing_coarse: float = 1,
-                 apply_multiscale_correction = True):
-        
-
-        self.box_size = box_size
-        self.grid_size = grid_size
-        self.method = method
-        self.threshold = threshold
-        self.H0 = H0
-        self.smoothing_fine = smoothing_fine * grid_size / box_size
-        self.smoothing_coarse = smoothing_coarse * grid_size / box_size
-        self.msc = apply_multiscale_correction"""
     def __init__(self,
                  box_size: float = 100.0,
                  grid_size: int = 256,
