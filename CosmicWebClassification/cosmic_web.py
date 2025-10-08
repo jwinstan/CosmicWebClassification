@@ -707,7 +707,7 @@ class CosmicWebClassifier:
                  method: str = "cic",
                  threshold: float = 0.44,
                  H0: float = 67.5,
-                 smoothing_fine: float = 0.125,
+                 smoothing_fine: float = 0.25,
                  smoothing_coarse: float = 1.0,
                  smoothing_units: str = "physical",
                  apply_multiscale_correction: bool = True):
@@ -886,6 +886,7 @@ class CosmicWebClassifier:
         if masses is not None and not np.all(np.isfinite(masses)):
             raise ValueError("masses contain NaNs or infinite values")
         
+
 
 
 
