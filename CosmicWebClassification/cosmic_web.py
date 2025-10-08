@@ -682,7 +682,7 @@ def plotting_routine(web,box_size,grid_size,threshold):
     
 #@memory_profile_class
 class CosmicWebClassifier:
-    def __init__(self, 
+    """def __init__(self, 
                  box_size: float = 100.0, 
                  grid_size: int = 256, 
                  method: str = "cic", 
@@ -700,8 +700,64 @@ class CosmicWebClassifier:
         self.H0 = H0
         self.smoothing_fine = smoothing_fine * grid_size / box_size
         self.smoothing_coarse = smoothing_coarse * grid_size / box_size
-        self.msc = apply_multiscale_correction
+        self.msc = apply_multiscale_correction"""
+    def __init__(self,
+                 box_size: float = 100.0,
+                 grid_size: int = 256,
+                 method: str = "cic",
+                 threshold: float = 0.44,
+                 H0: float = 67.5,
+                 smoothing_fine: float = 0.125,
+                 smoothing_coarse: float = 1.0,
+                 smoothing_units: str = "physical",
+                 apply_multiscale_correction: bool = True):
+        """
+        Parameters
+        ----------
+        box_size : float
+            Simulation box size in Mpc/h.
+        grid_size : int
+            Number of cells along one axis.
+        method : {"ngp","cic","tsc"}
+            Mass / velocity assignment scheme.
+        threshold : float
+            Eigenvalue threshold (lam_th).
+        H0 : float
+            Hubble constant in km/s/(Mpc/h).
+        smoothing_fine : float
+            Fine-scale Gaussian smoothing length.
+            Interpreted either in physical units (Mpc/h)
+            or in grid-cell units, controlled by `smoothing_units`.
+        smoothing_coarse : float
+            Coarse-scale smoothing length (same units as above).
+        smoothing_units : {"physical","cells"}
+            - "physical": input smoothing_* are in Mpc/h,
+              they will be scaled to grid cells as
+              sigma_cells = smoothing * grid_size / box_size.
+            - "cells": input smoothing_* are already in grid-cell units
+              and used as-is (no scaling).
+        apply_multiscale_correction : bool
+            Whether to apply multiscale correction step.
+        """
 
+        self.box_size = float(box_size)
+        self.grid_size = int(grid_size)
+        self.method = method
+        self.threshold = float(threshold)
+        self.H0 = float(H0)
+
+        if smoothing_units not in ("physical", "cells"):
+            raise ValueError("smoothing_units must be 'physical' or 'cells'")
+
+        if smoothing_units == "physical":
+            self.smoothing_fine   = smoothing_fine   * self.grid_size / self.box_size
+            self.smoothing_coarse = smoothing_coarse * self.grid_size / self.box_size
+        else:  # "cells"
+            self.smoothing_fine   = float(smoothing_fine)
+            self.smoothing_coarse = float(smoothing_coarse)
+
+        self.msc = bool(apply_multiscale_correction)
+          
         if self.box_size <= 0:
             raise ValueError(f"box_size must be positive, got {self.box_size}")
         if self.grid_size <= 0:
@@ -830,6 +886,7 @@ class CosmicWebClassifier:
         if masses is not None and not np.all(np.isfinite(masses)):
             raise ValueError("masses contain NaNs or infinite values")
         
+
 
 
 
