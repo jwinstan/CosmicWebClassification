@@ -858,11 +858,11 @@ class CosmicWebClassifier:
             self.web = web_fine
         return self.web
 
-    def plot(self, filename=None,show=True):
+    def plot(self, filename=None,show=True,z_level=None):
         if self.web is None:
             raise RuntimeError("Run classify_structure() first after adding batches.")
 
-        plotting_routine(self.web, self.box_size, self.grid_size, self.threshold)
+        plotting_routine(self.web, self.box_size, self.grid_size, self.threshold,z_level=z_level)
 
         if filename:
             plt.savefig(filename, dpi=300, bbox_inches="tight")
