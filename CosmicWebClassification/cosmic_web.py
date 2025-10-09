@@ -672,7 +672,7 @@ def apply_multiscale_correction(fine_web, coarse_web, density_grid,
     return corrected_web
 
 #@memory_profile()
-def plotting_routine(web,box_size,grid_size,threshold):
+def plotting_routine(web,box_size,grid_size,threshold,z_level=None):
     """
     Plotting routine for the cosmic web classification.
     
@@ -696,8 +696,12 @@ def plotting_routine(web,box_size,grid_size,threshold):
         print("Warning: web contains unexpected values outside [0,1,2,3]")
 
     # Parameters
-    z_mid_idx = web.shape[2] // 2   # middle z index
-    dz = (box_size / web.shape[2]) / 2  # half cell width in z
+    if z_level == None:
+        z_mid_idx = web.shape[2] // 2   # middle z index
+    else:
+        assert 0 <= z_level < web.shape[2], "z_level must be within the grid range"
+        z_mid_idx = int(z_level)
+
     cmap = ListedColormap(['white', 'cyan', 'orange', 'red'])
     labels = ['Void', 'Sheet', 'Filament', 'Cluster']
 
@@ -715,7 +719,7 @@ def plotting_routine(web,box_size,grid_size,threshold):
 
     plt.xlabel('X [Mpc]')
     plt.ylabel('Y [Mpc]')
-    plt.title('Cosmic Web (Middle Z slice)')
+    plt.title(f'Cosmic Web ({z_mid_idx} slice)')
     plt.grid(color='gray', linestyle='--', alpha=0.5)
     
 #@memory_profile_class
