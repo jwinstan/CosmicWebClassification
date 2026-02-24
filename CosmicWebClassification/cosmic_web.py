@@ -8,6 +8,8 @@ import inspect
 import sys
 import psutil
 import os
+import warnings
+
 
 
 
@@ -769,6 +771,22 @@ class CosmicWebClassifier:
         self.threshold = float(threshold)
         self.H0 = float(H0)
 
+        #Quick memory check
+        available_mem = psutil.virtual_memory().available  # bytes
+        n_cells = self.grid_size ** 3
+        bytes_per_element = np.dtype(np.float64).itemsize  # 8 bytes
+        estimated_arrays = 1 + 1 + 3 + 3 + 9
+        estimated_mem = n_cells * bytes_per_element * estimated_arrays
+        estimated_mem *= 1.3
+
+        if estimated_mem > 0.8 * available_mem:
+            warnings.warn(
+                f"Estimated memory usage ≈ {estimated_mem/1e9:.2f} GB, "
+                f"available system memory ≈ {available_mem/1e9:.2f} GB.\n"
+                "Job might not finish: possible insufficient memory.",
+                ResourceWarning
+            )
+
         if smoothing_units not in ("physical", "cells"):
             raise ValueError("smoothing_units must be 'physical' or 'cells'")
 
@@ -934,6 +952,7 @@ class CosmicWebClassifier:
         if masses is not None and not np.all(np.isfinite(masses)):
             raise ValueError("masses contain NaNs or infinite values")
         
+
 
 
 
