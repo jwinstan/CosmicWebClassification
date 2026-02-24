@@ -814,7 +814,7 @@ class CosmicWebClassifier:
 
     def add_batch(self, positions, velocities, masses=None):
         self._validate_particle_inputs(positions, velocities, masses)
-        assert np.all(positions >= 0.0) and np.all(positions < self.box_size), "Positions must be within the box [0, box_size)."
+        assert np.all(positions >= 0.0) and np.all(positions <= self.box_size), "Positions must be within the box [0, box_size)."
         pos_max = np.max(positions)
         if pos_max < 0.9*self.box_size:
             print(f"Warning: max position {pos_max:.3f} is much smaller than box_size {self.box_size:.3f}.")
@@ -934,6 +934,7 @@ class CosmicWebClassifier:
         if masses is not None and not np.all(np.isfinite(masses)):
             raise ValueError("masses contain NaNs or infinite values")
         
+
 
 
 
