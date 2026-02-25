@@ -888,27 +888,50 @@ class CosmicWebClassifier:
     # ------------------------
     # Final computation
     # ------------------------
-    def classify_structure(self):
+    def classify_structure(self, run_on_all: bool = False, root: int = 0):
+        """
+        Classify cosmic web.
+    
+        MPI behaviour:
+          - Default (run_on_all=False): only `root` runs classification; others return None.
+          - run_on_all=True: all ranks run classification and return the web grid.
+    
+        Assumes (if you're doing MPI deposition) you've already reduced grids appropriately
+        (e.g. mpi_reduce_all_grids_inplace(...)).
+        """
+        comm, rank, size, MPI = self._get_mpi()
+    
+        # Root-only default under MPI
+        if comm is not None and size > 1 and (not run_on_all) and rank != root:
+            return None
+    
         avg_vx, avg_vy, avg_vz = self._compute_average_velocity()
         density_grid = self._compute_density_grid()
-
-        sigma_fine = compute_shear_tensor(avg_vx, avg_vy, avg_vz, box_size=self.box_size, H0=self.H0)
+    
+        sigma_fine = compute_shear_tensor(
+            avg_vx, avg_vy, avg_vz,
+            box_size=self.box_size, H0=self.H0
+        )
         lambdas_fine = diagonalize_shear_tensor(sigma_fine)
-        web_fine = classify_cosmic_web(lambdas_fine, lam_th=self.threshold)  
-
+        web_fine = classify_cosmic_web(lambdas_fine, lam_th=self.threshold)
+    
         if self.msc:
             sigma_coarse = compute_shear_tensor(
-            gaussian_filter(avg_vx, sigma=self.smoothing_coarse, mode='wrap'),
-            gaussian_filter(avg_vy, sigma=self.smoothing_coarse, mode='wrap'),
-            gaussian_filter(avg_vz, sigma=self.smoothing_coarse, mode='wrap'),
-            box_size=self.box_size, H0=self.H0
+                gaussian_filter(avg_vx, sigma=self.smoothing_coarse, mode='wrap'),
+                gaussian_filter(avg_vy, sigma=self.smoothing_coarse, mode='wrap'),
+                gaussian_filter(avg_vz, sigma=self.smoothing_coarse, mode='wrap'),
+                box_size=self.box_size, H0=self.H0
             )
-    
-            lambdas_coarse=  diagonalize_shear_tensor(sigma_coarse)
+            lambdas_coarse = diagonalize_shear_tensor(sigma_coarse)
             web_coarse = classify_cosmic_web(lambdas_coarse, lam_th=self.threshold)
-            self.web = apply_multiscale_correction(web_fine, web_coarse, density_grid, mean_density=1.0, virial_density=340.0)     
+    
+            self.web = apply_multiscale_correction(
+                web_fine, web_coarse, density_grid,
+                mean_density=1.0, virial_density=340.0
+            )
         else:
             self.web = web_fine
+    
         return self.web
 
     def plot(self, filename=None,show=True,z_level=None):
@@ -996,37 +1019,34 @@ class CosmicWebClassifier:
         comm = MPI.COMM_WORLD
         return comm, comm.Get_rank(), comm.Get_size(), MPI
 
-    def mpi_reduce_all_grids_inplace(self, root: int = 0, everyone: bool = False) -> bool:
+    def mpi_reduce_all_grids_inplace(self, root: int = 0, everyone: bool = False):
         """
         Reduce ALL grids in-place to minimize RAM.
-
-        - everyone=False: Reduce to `root` only. Only root returns True.
-        - everyone=True : Allreduce in-place. Everyone returns True.
-
-        No full-sized temporary recv arrays are allocated.
+    
+        everyone=False: Reduce to `root` only (root ends with summed grids)
+        everyone=True : Allreduce in-place (all ranks end with summed grids)
+    
+        Returns None always.
         """
         comm, rank, size, MPI = self._get_mpi()
         if comm is None or size <= 1:
-            return True
-
+            return
+    
         grids = (self.vel_x, self.vel_y, self.vel_z, self.count, self.mass_grid)
-
+    
         if everyone:
-            # In-place Allreduce: sums into the existing buffers on all ranks
             for g in grids:
                 comm.Allreduce(MPI.IN_PLACE, g, op=MPI.SUM)
-            return True
-
-        # Root-only in-place Reduce
+            return
+    
         if rank == root:
             for g in grids:
                 comm.Reduce(MPI.IN_PLACE, g, op=MPI.SUM, root=root)
-            return True
         else:
             for g in grids:
                 comm.Reduce(g, None, op=MPI.SUM, root=root)
-            return False
         
+
 
 
 
