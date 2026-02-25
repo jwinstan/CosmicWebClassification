@@ -9,6 +9,7 @@ import sys
 import psutil
 import os
 import warnings
+from mpi4py import MPI
 
 
 
@@ -951,7 +952,48 @@ class CosmicWebClassifier:
             raise ValueError("velocities contain NaNs or infinite values")
         if masses is not None and not np.all(np.isfinite(masses)):
             raise ValueError("masses contain NaNs or infinite values")
+
+
+    def _get_mpi(self):
+        try:
+            from mpi4py import MPI
+        except Exception:
+            return None, 0, 1, None
+        comm = MPI.COMM_WORLD
+        return comm, comm.Get_rank(), comm.Get_size(), MPI
+
+    def mpi_reduce_all_grids_inplace(self, root: int = 0, everyone: bool = False) -> bool:
+        """
+        Reduce ALL grids in-place to minimize RAM.
+
+        - everyone=False: Reduce to `root` only. Only root returns True.
+        - everyone=True : Allreduce in-place. Everyone returns True.
+
+        No full-sized temporary recv arrays are allocated.
+        """
+        comm, rank, size, MPI = self._get_mpi()
+        if comm is None or size <= 1:
+            return True
+
+        grids = (self.vel_x, self.vel_y, self.vel_z, self.count, self.mass_grid)
+
+        if everyone:
+            # In-place Allreduce: sums into the existing buffers on all ranks
+            for g in grids:
+                comm.Allreduce(MPI.IN_PLACE, g, op=MPI.SUM)
+            return True
+
+        # Root-only in-place Reduce
+        if rank == root:
+            for g in grids:
+                comm.Reduce(MPI.IN_PLACE, g, op=MPI.SUM, root=root)
+            return True
+        else:
+            for g in grids:
+                comm.Reduce(g, None, op=MPI.SUM, root=root)
+            return False
         
+
 
 
 
