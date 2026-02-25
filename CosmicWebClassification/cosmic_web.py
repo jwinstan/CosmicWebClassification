@@ -9,7 +9,10 @@ import sys
 import psutil
 import os
 import warnings
-from mpi4py import MPI
+try:
+    from mpi4py import MPI  # optional
+except Exception:
+    MPI = None
 
 
 
@@ -1012,12 +1015,19 @@ class CosmicWebClassifier:
 
 
     def _get_mpi(self):
-        try:
-            from mpi4py import MPI
-        except Exception:
+        """
+        Returns (comm, rank, size, MPI) if MPI is usable and size>1,
+        else (None, 0, 1, None).
+        """
+        if MPI is None:
             return None, 0, 1, None
+    
         comm = MPI.COMM_WORLD
-        return comm, comm.Get_rank(), comm.Get_size(), MPI
+        size = comm.Get_size()
+        if size <= 1:
+            return None, 0, 1, None
+    
+        return comm, comm.Get_rank(), size, MPI
 
     def mpi_reduce_all_grids_inplace(self, root: int = 0, everyone: bool = False):
         """
@@ -1046,6 +1056,7 @@ class CosmicWebClassifier:
             for g in grids:
                 comm.Reduce(g, None, op=MPI.SUM, root=root)
         
+
 
 
 
