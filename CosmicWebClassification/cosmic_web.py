@@ -772,19 +772,53 @@ class CosmicWebClassifier:
         self.threshold = float(threshold)
         self.H0 = float(H0)
 
-        #Quick memory check
-        available_mem = psutil.virtual_memory().available  # bytes
-        n_cells = self.grid_size ** 3
-        bytes_per_element = np.dtype(np.float64).itemsize  # 8 bytes
-        estimated_arrays = 1 + 1 + 3 + 3 + 9
-        estimated_mem = n_cells * bytes_per_element * estimated_arrays
-        estimated_mem *= 1.3
+        def _estimate_mem_bytes(n_cells, n_float64_arrays, n_float32_arrays):
+            b64 = np.dtype(np.float64).itemsize
+            b32 = np.dtype(np.float32).itemsize
+            return n_cells * (n_float64_arrays * b64 + n_float32_arrays * b32)
 
+        def _available_mem_per_local_rank_bytes():
+            """
+            Returns an estimate of available RAM per MPI rank on the *current node*.
+            Non-MPI: returns psutil.available.
+            MPI: returns psutil.available / (ranks on this node).
+            """
+            avail = psutil.virtual_memory().available  # node-wide
+        
+            try:
+                from mpi4py import MPI
+                comm = MPI.COMM_WORLD
+                if comm.Get_size() <= 1:
+                    return avail
+        
+                # Count ranks on the same physical node
+                local_comm = comm.Split_type(MPI.COMM_TYPE_SHARED)
+                local_size = local_comm.Get_size()
+        
+                # Conservative: divide node-available by local ranks
+                return avail // max(local_size, 1)
+        
+            except Exception:
+                return avail
+                    
+        # inside __init__ after self.grid_size is known
+        n_cells = self.grid_size ** 3
+        available_mem = _available_mem_per_local_rank_bytes()
+        
+
+        n_float64_arrays = 1 + 1 + 3 + 3   
+        n_float32_arrays = 9              
+        
+        estimated_mem = _estimate_mem_bytes(n_cells, n_float64_arrays, n_float32_arrays)
+        
+        # Safety factor for temporaries / FFT workspace / overhead
+        estimated_mem *= 1.3
+        
         if estimated_mem > 0.8 * available_mem:
             warnings.warn(
-                f"Estimated memory usage ≈ {estimated_mem/1e9:.2f} GB, "
-                f"available system memory ≈ {available_mem/1e9:.2f} GB.\n"
-                "Job might not finish: possible insufficient memory.",
+                f"Estimated per-rank memory usage ≈ {estimated_mem/1e9:.2f} GB, "
+                f"available per-rank memory ≈ {available_mem/1e9:.2f} GB.\n"
+                "Likely to OOM on this node (per-rank share too small).\n",
                 ResourceWarning
             )
 
@@ -993,6 +1027,7 @@ class CosmicWebClassifier:
                 comm.Reduce(g, None, op=MPI.SUM, root=root)
             return False
         
+
 
 
 
