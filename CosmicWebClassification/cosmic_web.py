@@ -808,9 +808,12 @@ class CosmicWebClassifier:
         n_cells = self.grid_size ** 3
         available_mem = _available_mem_per_local_rank_bytes()
         
-
-        n_float64_arrays = 1 + 1 + 3 + 3   
-        n_float32_arrays = 9              
+        if self.msc:
+            n_float64_arrays = 5 + 3 + 1 + 3    # + coarse-smoothed v(3) = 12
+            n_float32_arrays = (9 + 3) * 2      # fine + coarse = 24
+        else:
+            n_float64_arrays = 5 + 3 + 1        # grids + avg_v(3) + density(1) = 9
+            n_float32_arrays = 9 + 3            # sigma_fine(9) + lambdas_fine(3) = 12          
         
         estimated_mem = _estimate_mem_bytes(n_cells, n_float64_arrays, n_float32_arrays)
         
@@ -1056,6 +1059,7 @@ class CosmicWebClassifier:
             for g in grids:
                 comm.Reduce(g, None, op=MPI.SUM, root=root)
         
+
 
 
 
