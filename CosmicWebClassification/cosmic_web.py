@@ -802,7 +802,7 @@ class CosmicWebClassifier:
         self.H0 = float(H0)
         self.msc = bool(apply_multiscale_correction)
         self.use_auto_threshold = bool(auto_threshold)
-        self.target_void_fraction = float(target_void_Fraction)
+        self.target_void_fraction = float(target_void_fraction)
 
         def _estimate_mem_bytes(n_cells, n_float64_arrays, n_float32_arrays):
             b64 = np.dtype(np.float64).itemsize
