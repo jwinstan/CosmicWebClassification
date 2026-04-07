@@ -497,6 +497,30 @@ def diagonalize_shear_tensor(sigma):
 
     return (lambda1, lambda2, lambda3)#, (evec1, evec2, evec3)
 
+def auto_threshold(lambdas, target_void_fraction=0.75, bracket=(0.0,2.0)):
+    """Find the best threshold"""
+    from scipy.optimise import brentq
+
+     def _void_excess(th):
+        return np.mean(classify_cosmic_web(lambdas, lam_th=th) == 0) - target_void_fraction
+ 
+    lo, hi = bracket
+    if _void_excess(lo) > 0:
+        raise ValueError(
+            f"void fraction at bracket[0]={lo:.2f} is already above target "
+            f"{target_void_fraction:.2f}. Raise bracket[0] or lower target_void_fraction."
+        )
+    if _void_excess(hi) < 0:
+        raise ValueError(
+            f"void fraction at bracket[1]={hi:.2f} is still below target "
+            f"{target_void_fraction:.2f}. Raise bracket[1] or raise target_void_fraction."
+        )
+ 
+    lam_th = brentq(_void_excess, lo, hi, xtol=1e-4)
+    return float(lam_th)
+
+
+
 def diagonalize_shear_tensor_new(sigma):
     """
     Compute eigenvalues of the velocity shear tensor at each cell in a 3D grid.
@@ -739,7 +763,9 @@ class CosmicWebClassifier:
                  smoothing_fine: float = 0.25,
                  smoothing_coarse: float = 1.0,
                  smoothing_units: str = "physical",
-                 apply_multiscale_correction: bool = True):
+                 apply_multiscale_correction: bool = True,
+                 auto_threshold: bool = False,
+                 target_void_Fraction: float = 0.75):
         """
         Parameters
         ----------
@@ -775,6 +801,8 @@ class CosmicWebClassifier:
         self.threshold = float(threshold)
         self.H0 = float(H0)
         self.msc = bool(apply_multiscale_correction)
+        self.use_auto_threshold = bool(auto_threshold)
+        self.target_void_fraction = float(target_void_Fraction)
 
         def _estimate_mem_bytes(n_cells, n_float64_arrays, n_float32_arrays):
             b64 = np.dtype(np.float64).itemsize
@@ -895,6 +923,7 @@ class CosmicWebClassifier:
     # ------------------------
     # Final computation
     # ------------------------
+    
     def classify_structure(self, run_on_all: bool = False, root: int = 0):
         """
         Classify cosmic web.
@@ -920,6 +949,12 @@ class CosmicWebClassifier:
             box_size=self.box_size, H0=self.H0
         )
         lambdas_fine = diagonalize_shear_tensor(sigma_fine)
+
+        if self.use_auto_threshold:
+            self.threshold = auto_threshold(lambdas_fine, self.target_void_fraction)
+            print(f"Auto threshold: lam_th = {self.threshold:.4f} "
+                  f"(target void fraction {self.target_void_fraction:.2f})")
+            
         web_fine = classify_cosmic_web(lambdas_fine, lam_th=self.threshold)
     
         if self.msc:
@@ -977,6 +1012,8 @@ class CosmicWebClassifier:
         else:
             self.web = web_fine
         return self.web
+
+    
         
     def _compute_average_velocity(self):
         mask = self.count > 0.0
