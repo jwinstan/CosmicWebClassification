@@ -499,9 +499,9 @@ def diagonalize_shear_tensor(sigma):
 
 def auto_threshold(lambdas, target_void_fraction=0.75, bracket=(0.0,2.0)):
     """Find the best threshold"""
-    from scipy.optimise import brentq
+    from scipy.optimize import brentq
 
-     def _void_excess(th):
+    def _void_excess(th):
         return np.mean(classify_cosmic_web(lambdas, lam_th=th) == 0) - target_void_fraction
  
     lo, hi = bracket
@@ -765,7 +765,7 @@ class CosmicWebClassifier:
                  smoothing_units: str = "physical",
                  apply_multiscale_correction: bool = True,
                  auto_threshold: bool = False,
-                 target_void_Fraction: float = 0.75):
+                 target_void_fraction: float = 0.75):
         """
         Parameters
         ----------
