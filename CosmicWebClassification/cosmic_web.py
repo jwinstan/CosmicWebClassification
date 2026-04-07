@@ -774,6 +774,7 @@ class CosmicWebClassifier:
         self.method = method
         self.threshold = float(threshold)
         self.H0 = float(H0)
+        self.msc = bool(apply_multiscale_correction)
 
         def _estimate_mem_bytes(n_cells, n_float64_arrays, n_float32_arrays):
             b64 = np.dtype(np.float64).itemsize
@@ -838,7 +839,7 @@ class CosmicWebClassifier:
             self.smoothing_fine   = float(smoothing_fine)
             self.smoothing_coarse = float(smoothing_coarse)
 
-        self.msc = bool(apply_multiscale_correction)
+        
           
         if self.box_size <= 0:
             raise ValueError(f"box_size must be positive, got {self.box_size}")
